@@ -25,24 +25,48 @@ class JobResponse(BaseModel):
 @router.post("")
 def create_job(
     request: JobCreate,
+    current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    # Only customers can assign a technician
+    if current_user.get("role") != "CUSTOMER":
+        raise HTTPException(
+            status_code=403,
+            detail="Only customers can assign technicians",
+        )
+
+    user_id = current_user.get("sub")
+
+    if not user_id:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid customer authentication",
+        )
     # 1. Get the service request
     service_request_query = text("""
-        SELECT
-            sr.id,
-            sr.customer_id,
-            sr.service_id,
-            sr.status
-        FROM service_requests sr
-        WHERE sr.id = :service_request_id;
-    """)
+    SELECT
+        sr.id,
+        sr.customer_id,
+        sr.service_id,
+        sr.status
+    FROM service_requests sr
+    JOIN customers c
+        ON c.id = sr.customer_id
+    JOIN users u
+        ON u.id = c.user_id
+    WHERE
+        sr.id = :service_request_id
+        AND c.user_id = :user_id
+        AND u.is_active = TRUE
+        AND u.is_verified = TRUE;
+""")
 
     service_request = db.execute(
         service_request_query,
         {
-            "service_request_id": request.service_request_id,
-        },
+    "service_request_id": request.service_request_id,
+    "user_id": user_id,
+}
     ).fetchone()
 
     if not service_request:
@@ -102,6 +126,49 @@ def create_job(
         )
 
     # 6. Verify technician matches requested service
+    # 6. Technician GPS must be fresh and within the request search radius
+    location_query = text("""
+        SELECT
+            ST_Distance(
+                tl.location,
+                sr.location
+            ) AS distance_meters
+        FROM technician_locations tl
+        JOIN service_requests sr
+            ON sr.id = :service_request_id
+        JOIN technicians t
+            ON t.id = tl.technician_id
+        WHERE
+            tl.technician_id = :technician_id
+            AND tl.location IS NOT NULL
+            AND sr.location IS NOT NULL
+            AND tl.last_seen_at >= NOW() - INTERVAL '10 minutes'
+            AND ST_DWithin(
+                tl.location,
+                sr.location,
+                LEAST(
+                    sr.search_radius_meters,
+                    t.service_radius_km * 1000
+                )
+            )
+        LIMIT 1;
+    """)
+
+    technician_location = db.execute(
+        location_query,
+        {
+            "service_request_id": request.service_request_id,
+            "technician_id": request.technician_id,
+        },
+    ).fetchone()
+
+    if not technician_location:
+        raise HTTPException(
+            status_code=409,
+            detail="Technician GPS location is unavailable, stale, or outside the service area",
+        )
+
+    distance_km = round(float(technician_location.distance_meters) / 1000, 2)
     matching_query = text("""
         SELECT 1
         FROM service_requests sr
@@ -222,10 +289,11 @@ def create_job(
         db.commit()
 
         return {
-            "status": "success",
-            "message": "Job created and assigned successfully",
-            "job": dict(job._mapping),
-        }
+    "status": "success",
+    "message": "Job created and assigned successfully",
+    "distance_km": distance_km,
+    "job": dict(job._mapping),
+}
 
     except Exception as exc:
         db.rollback()
@@ -631,6 +699,23 @@ def update_job_status(
 
         updated_job = result.fetchone()
 
+        # When the job is completed, close the related service request
+        if new_status == "COMPLETED":
+            service_request_update = text("""
+                UPDATE service_requests
+                SET
+                    status = 'COMPLETED',
+                    updated_at = now()
+                WHERE id = :service_request_id
+            """)
+
+            db.execute(
+                service_request_update,
+                {
+                    "service_request_id": job.service_request_id
+                },
+            )
+
         # Record status history
         history_query = text("""
             INSERT INTO job_status_history (
@@ -682,8 +767,23 @@ def update_job_status(
 @router.get("/{job_id}/history")
 def get_job_history(
     job_id: str,
-    db: Session = Depends(get_db)
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
+    if current_user.get("role") != "CUSTOMER":
+        raise HTTPException(
+            status_code=403,
+            detail="Only customers can access customer job history"
+        )
+
+    user_id = current_user.get("sub")
+
+    if not user_id:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid customer authentication"
+        )
+
     query = text("""
         SELECT
             h.id,
@@ -693,25 +793,70 @@ def get_job_history(
             h.remarks,
             h.created_at,
             u.full_name AS changed_by_name
+
         FROM job_status_history h
+
+        JOIN jobs j
+            ON j.id = h.job_id
+
+        JOIN customers c
+            ON c.id = j.customer_id
+
+        JOIN users cu
+            ON cu.id = c.user_id
+
         LEFT JOIN users u
             ON u.id = h.changed_by
-        WHERE h.job_id = :job_id
+
+        WHERE
+            h.job_id = :job_id
+            AND cu.id = :user_id
+            AND cu.is_active = TRUE
+            AND cu.is_verified = TRUE
+
         ORDER BY h.created_at ASC
     """)
 
     results = db.execute(
         query,
-        {"job_id": job_id}
+        {
+            "job_id": job_id,
+            "user_id": user_id,
+        }
     ).mappings().all()
+
+    if not results:
+        raise HTTPException(
+            status_code=404,
+            detail="Job history not found"
+        )
 
     return {
         "status": "success",
         "total": len(results),
         "history": [dict(row) for row in results]
     }
+
 @router.get("/{job_id}")
-def get_job(job_id: str, db: Session = Depends(get_db)):
+def get_job(
+    job_id: str,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if current_user.get("role") != "CUSTOMER":
+        raise HTTPException(
+            status_code=403,
+            detail="Only customers can access customer jobs"
+        )
+
+    user_id = current_user.get("sub")
+
+    if not user_id:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid customer authentication"
+        )
+
     query = text("""
         SELECT
             j.id,
@@ -752,6 +897,12 @@ def get_job(job_id: str, db: Session = Depends(get_db)):
 
         FROM jobs j
 
+        JOIN customers c
+            ON c.id = j.customer_id
+
+        JOIN users cu
+            ON cu.id = c.user_id
+
         JOIN service_requests sr
             ON sr.id = j.service_request_id
 
@@ -764,12 +915,19 @@ def get_job(job_id: str, db: Session = Depends(get_db)):
         JOIN users u
             ON u.id = t.user_id
 
-        WHERE j.id = :job_id
+        WHERE
+            j.id = :job_id
+            AND cu.id = :user_id
+            AND cu.is_active = TRUE
+AND cu.is_verified = TRUE
     """)
 
     result = db.execute(
         query,
-        {"job_id": job_id}
+        {
+            "job_id": job_id,
+            "user_id": user_id,
+        }
     ).mappings().first()
 
     if not result:
@@ -785,13 +943,29 @@ def get_job(job_id: str, db: Session = Depends(get_db)):
 @router.get("/customer/{customer_id}")
 def get_customer_jobs(
     customer_id: str,
-    db: Session = Depends(get_db)
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
+    if current_user.get("role") != "CUSTOMER":
+        raise HTTPException(
+            status_code=403,
+            detail="Only customers can access customer jobs"
+        )
+
+    user_id = current_user.get("sub")
+
+    if not user_id:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid customer authentication"
+        )
+
     query = text("""
         SELECT
             j.id,
             j.service_request_id,
             j.technician_id,
+            j.customer_id,
             j.status,
             j.estimated_amount,
             j.final_amount,
@@ -814,6 +988,12 @@ def get_customer_jobs(
 
         FROM jobs j
 
+        JOIN customers c
+            ON c.id = j.customer_id
+
+        JOIN users cu
+            ON cu.id = c.user_id
+
         JOIN service_requests sr
             ON sr.id = j.service_request_id
 
@@ -826,14 +1006,20 @@ def get_customer_jobs(
         JOIN users u
             ON u.id = t.user_id
 
-        WHERE j.customer_id = :customer_id
+        WHERE
+            j.customer_id = c.id
+            AND cu.id = :user_id
+            AND cu.is_active = TRUE
+            AND cu.is_verified = TRUE
 
         ORDER BY j.created_at DESC
     """)
 
     results = db.execute(
         query,
-        {"customer_id": customer_id}
+        {
+            "user_id": user_id
+        }
     ).mappings().all()
 
     return {
@@ -924,13 +1110,56 @@ def get_my_technician_jobs(
 @router.get("/technician/{technician_id}")
 def get_technician_jobs(
     technician_id: str,
-    db: Session = Depends(get_db)
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
+    if current_user.get("role") != "TECHNICIAN":
+        raise HTTPException(
+            status_code=403,
+            detail="Only technicians can access technician jobs"
+        )
+
+    user_id = current_user.get("sub")
+
+    if not user_id:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid technician authentication"
+        )
+
+    technician_check = text("""
+        SELECT t.id
+        FROM technicians t
+        JOIN users u
+            ON u.id = t.user_id
+        WHERE
+            t.id = :technician_id
+            AND u.id = :user_id
+            AND u.is_active = TRUE
+            AND u.is_verified = TRUE
+        LIMIT 1
+    """)
+
+    technician_result = db.execute(
+        technician_check,
+        {
+            "technician_id": technician_id,
+            "user_id": user_id,
+        }
+    ).first()
+
+    if not technician_result:
+        raise HTTPException(
+            status_code=403,
+            detail="You are not authorized to access this technician's jobs"
+        )
+
     query = text("""
         SELECT
             j.id,
             j.service_request_id,
             j.customer_id,
+            j.technician_id,
             j.status,
             j.estimated_amount,
             j.final_amount,
@@ -958,6 +1187,12 @@ def get_technician_jobs(
 
         FROM jobs j
 
+        JOIN technicians t
+            ON t.id = j.technician_id
+
+        JOIN users tu
+            ON tu.id = t.user_id
+
         JOIN service_requests sr
             ON sr.id = j.service_request_id
 
@@ -970,18 +1205,129 @@ def get_technician_jobs(
         JOIN users u
             ON u.id = c.user_id
 
-        WHERE j.technician_id = :technician_id
+        WHERE
+            j.technician_id = :technician_id
+            AND tu.id = :user_id
+            AND tu.is_active = TRUE
+            AND tu.is_verified = TRUE
 
         ORDER BY j.created_at DESC
     """)
 
     results = db.execute(
         query,
-        {"technician_id": technician_id}
+        {
+            "technician_id": technician_id,
+            "user_id": user_id,
+        }
     ).mappings().all()
 
     return {
         "status": "success",
         "total": len(results),
         "jobs": [dict(row) for row in results]
+    }
+@router.get("/my/{job_id}")
+def get_my_customer_job(
+    job_id: str,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    # Only customers can access this endpoint
+    if current_user.get("role") != "CUSTOMER":
+        raise HTTPException(
+            status_code=403,
+            detail="Only customers can access customer jobs",
+        )
+
+    user_id = current_user.get("sub")
+
+    if not user_id:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid customer authentication",
+        )
+
+    query = text("""
+        SELECT
+            j.id,
+            j.service_request_id,
+            j.customer_id,
+            j.technician_id,
+            j.status,
+            j.estimated_amount,
+            j.final_amount,
+            j.assigned_at,
+            j.accepted_at,
+            j.started_at,
+            j.completed_at,
+            j.cancelled_at,
+            j.cancellation_reason,
+            j.created_at,
+            j.updated_at,
+
+            sr.title AS service_request_title,
+            sr.description AS service_request_description,
+            sr.address_line1,
+            sr.address_line2,
+            sr.city,
+            sr.state,
+            sr.pincode,
+            sr.preferred_date,
+            sr.preferred_time_start,
+            sr.preferred_time_end,
+
+            s.id AS service_id,
+            s.name AS service_name,
+
+            t.id AS technician_id,
+            u.full_name AS technician_name,
+            t.business_name AS technician_business_name,
+            t.experience_years AS technician_experience_years,
+            t.rating_average AS technician_rating,
+            t.total_jobs AS technician_total_jobs,
+            t.availability_status AS technician_availability_status
+
+        FROM jobs j
+
+        JOIN customers c
+            ON c.id = j.customer_id
+
+        JOIN users cu
+            ON cu.id = c.user_id
+
+        JOIN service_requests sr
+            ON sr.id = j.service_request_id
+
+        JOIN services s
+            ON s.id = sr.service_id
+
+        JOIN technicians t
+            ON t.id = j.technician_id
+
+        JOIN users u
+            ON u.id = t.user_id
+
+        WHERE
+            j.id = :job_id
+            AND cu.id = :user_id
+    """)
+
+    result = db.execute(
+        query,
+        {
+            "job_id": job_id,
+            "user_id": user_id,
+        },
+    ).mappings().first()
+
+    if not result:
+        raise HTTPException(
+            status_code=404,
+            detail="Job not found",
+        )
+
+    return {
+        "status": "success",
+        "job": dict(result),
     }

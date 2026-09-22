@@ -16,6 +16,12 @@ router = APIRouter(
 class AvailabilityUpdate(BaseModel):
     availability_status: str
 
+class LocationUpdate(BaseModel):
+    latitude: float
+    longitude: float
+    accuracy_meters: float | None = None
+    battery_percent: int | None = None
+
 @router.post("/me/availability")
 def update_my_availability(
     data: AvailabilityUpdate,
@@ -93,8 +99,31 @@ def update_my_availability(
 def update_availability(
     technician_id: str,
     data: AvailabilityUpdate,
+    current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    # Only technicians can update availability
+    if current_user.get("role") != "TECHNICIAN":
+        raise HTTPException(
+            status_code=403,
+            detail="Technician access required"
+        )
+
+    logged_in_technician_id = current_user.get("technician_id")
+
+    if not logged_in_technician_id:
+        raise HTTPException(
+            status_code=403,
+            detail="Technician profile not found in access token"
+        )
+
+    # Technician can update only their own availability
+    if technician_id != logged_in_technician_id:
+        raise HTTPException(
+            status_code=403,
+            detail="You are not authorized to update this technician's availability"
+        )
+
     allowed_statuses = {
         "ONLINE",
         "BUSY",
@@ -111,11 +140,13 @@ def update_availability(
 
     technician = db.execute(
         text("""
-            SELECT id, availability_status
+            SELECT id
             FROM technicians
             WHERE id = :technician_id
         """),
-        {"technician_id": technician_id}
+        {
+            "technician_id": technician_id
+        }
     ).mappings().first()
 
     if not technician:
@@ -141,16 +172,10 @@ def update_availability(
 
     return {
         "status": "success",
-        "message": f"Technician availability updated to {status}",
+        "message": f"Your availability updated to {status}",
         "technician_id": technician_id,
         "availability_status": status
     }
-class LocationUpdate(BaseModel):
-    latitude: float
-    longitude: float
-    accuracy_meters: float | None = None
-    battery_percent: int | None = None
-
 @router.post("/me/location")
 def update_my_location(
     data: LocationUpdate,
@@ -267,30 +292,58 @@ def update_my_location(
         "accuracy_meters": data.accuracy_meters,
         "battery_percent": data.battery_percent
     }
+
 @router.post("/{technician_id}/location")
 def update_location(
     technician_id: str,
     data: LocationUpdate,
+    current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    # Only technicians can update technician location
+    if current_user.get("role") != "TECHNICIAN":
+        raise HTTPException(
+            status_code=403,
+            detail="Technician access required"
+        )
+
+    logged_in_technician_id = current_user.get("technician_id")
+
+    if not logged_in_technician_id:
+        raise HTTPException(
+            status_code=403,
+            detail="Technician profile not found in access token"
+        )
+
+    # Technician can update only their own location
+    if technician_id != logged_in_technician_id:
+        raise HTTPException(
+            status_code=403,
+            detail="You are not authorized to update this technician's location"
+        )
+
+    # Validate latitude
     if not -90 <= data.latitude <= 90:
         raise HTTPException(
             status_code=400,
             detail="Invalid latitude"
         )
 
+    # Validate longitude
     if not -180 <= data.longitude <= 180:
         raise HTTPException(
             status_code=400,
             detail="Invalid longitude"
         )
 
+    # Validate GPS accuracy
     if data.accuracy_meters is not None and data.accuracy_meters < 0:
         raise HTTPException(
             status_code=400,
             detail="Invalid GPS accuracy"
         )
 
+    # Validate battery percentage
     if data.battery_percent is not None:
         if not 0 <= data.battery_percent <= 100:
             raise HTTPException(
@@ -304,7 +357,9 @@ def update_location(
             FROM technicians
             WHERE id = :technician_id
         """),
-        {"technician_id": technician_id}
+        {
+            "technician_id": technician_id
+        }
     ).mappings().first()
 
     if not technician:
@@ -362,11 +417,35 @@ def update_location(
         "accuracy_meters": data.accuracy_meters,
         "battery_percent": data.battery_percent
     }
+
 @router.get("/{technician_id}/location")
 def get_location(
     technician_id: str,
+    current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    # Only technicians can access technician location
+    if current_user.get("role") != "TECHNICIAN":
+        raise HTTPException(
+            status_code=403,
+            detail="Technician access required"
+        )
+
+    logged_in_technician_id = current_user.get("technician_id")
+
+    if not logged_in_technician_id:
+        raise HTTPException(
+            status_code=403,
+            detail="Technician profile not found in access token"
+        )
+
+    # Technician can access only their own location
+    if technician_id != logged_in_technician_id:
+        raise HTTPException(
+            status_code=403,
+            detail="You are not authorized to access this technician's location"
+        )
+
     query = text("""
         SELECT
             technician_id,
@@ -395,7 +474,6 @@ def get_location(
         "status": "success",
         "location": dict(result)
     }
-
 
 @router.get("/me/services")
 def get_my_technician_services(
@@ -607,10 +685,7 @@ def get_my_technician_profile(
     query = text("""
         SELECT
             t.id AS technician_id,
-            u.id AS user_id,
             u.full_name,
-            u.email,
-            u.phone,
             t.business_name,
             t.experience_years,
             t.bio,
@@ -618,23 +693,15 @@ def get_my_technician_profile(
             t.kyc_status,
             t.availability_status,
             t.rating_average,
-            t.total_jobs,
-            k.verification_status AS kyc_verification_status,
-            k.address_verified,
-            tl.accuracy_meters,
-            tl.battery_percent,
-            tl.last_seen_at,
-            tl.updated_at,
-            ST_Y(tl.location::geometry) AS latitude,
-            ST_X(tl.location::geometry) AS longitude
+            t.total_jobs
         FROM technicians t
         JOIN users u
             ON u.id = t.user_id
-        LEFT JOIN technician_kyc k
-            ON k.technician_id = t.id
-        LEFT JOIN technician_locations tl
-            ON tl.technician_id = t.id
-        WHERE t.id = :technician_id
+        WHERE
+            t.id = :technician_id
+            AND u.is_active = TRUE
+            AND u.is_verified = TRUE
+        LIMIT 1
     """)
 
     result = db.execute(
@@ -652,62 +719,57 @@ def get_my_technician_profile(
         "status": "success",
         "technician": dict(result)
     }
+
+
 @router.get("/{technician_id}")
 def get_technician(
     technician_id: str,
+    current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    # User must be authenticated
+    user_id = current_user.get("sub")
+
+    if not user_id:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid authentication"
+        )
+
     query = text("""
         SELECT
             t.id AS technician_id,
-            u.id AS user_id,
             u.full_name,
-            u.email,
-            u.phone,
-
             t.business_name,
             t.experience_years,
             t.bio,
             t.service_radius_km,
-            t.kyc_status,
             t.availability_status,
             t.rating_average,
             t.total_jobs,
-
-            k.verification_status AS kyc_verification_status,
-            k.address_verified,
-
-            tl.accuracy_meters,
-            tl.battery_percent,
-            tl.last_seen_at,
-            tl.updated_at,
-
-            ST_Y(tl.location::geometry) AS latitude,
-            ST_X(tl.location::geometry) AS longitude
-
+            t.kyc_status
         FROM technicians t
-
         JOIN users u
             ON u.id = t.user_id
-
-        LEFT JOIN technician_kyc k
-            ON k.technician_id = t.id
-
-        LEFT JOIN technician_locations tl
-            ON tl.technician_id = t.id
-
-        WHERE t.id = :technician_id
+        WHERE
+            t.id = :technician_id
+            AND u.is_active = TRUE
+            AND u.is_verified = TRUE
+            AND t.kyc_status = 'APPROVED'
+        LIMIT 1
     """)
 
     result = db.execute(
         query,
-        {"technician_id": technician_id}
+        {
+            "technician_id": technician_id
+        }
     ).mappings().first()
 
     if not result:
         raise HTTPException(
             status_code=404,
-            detail="Technician not found"
+            detail="Verified technician not found"
         )
 
     return {
