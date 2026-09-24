@@ -204,6 +204,85 @@ def create_service_request(
             detail=f"Could not create service request: {str(exc)}",
         )
 
+@router.get("/my")
+def get_my_service_requests(
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    # Only customers can access their service requests
+    if current_user.get("role") != "CUSTOMER":
+        raise HTTPException(
+            status_code=403,
+            detail="Only customers can access customer service requests",
+        )
+
+    user_id = current_user.get("sub")
+
+    if not user_id:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid customer authentication",
+        )
+
+    query = text("""
+        SELECT
+            sr.id,
+            sr.service_id,
+            s.name AS service_name,
+            sc.name AS category_name,
+            sr.title,
+            sr.description,
+            sr.address_line1,
+            sr.address_line2,
+            sr.city,
+            sr.state,
+            sr.pincode,
+            sr.search_radius_meters,
+            sr.status,
+            sr.preferred_date,
+            sr.preferred_time_start,
+            sr.preferred_time_end,
+            sr.created_at,
+            sr.updated_at,
+
+            (
+                SELECT COUNT(*)
+                FROM jobs j
+                WHERE j.service_request_id = sr.id
+            ) AS job_count
+
+        FROM service_requests sr
+
+        JOIN customers c
+            ON c.id = sr.customer_id
+
+        JOIN services s
+            ON s.id = sr.service_id
+
+        JOIN service_categories sc
+            ON sc.id = s.category_id
+
+        WHERE
+            c.user_id = :user_id
+
+        ORDER BY
+            sr.created_at DESC;
+    """)
+
+    rows = db.execute(
+        query,
+        {"user_id": user_id},
+    ).mappings().all()
+
+    return {
+        "status": "success",
+        "customer_user_id": user_id,
+        "total_requests": len(rows),
+        "service_requests": [
+            dict(row)
+            for row in rows
+        ],
+    }
 @router.get("/{request_id}")
 def get_my_service_request(
     request_id: str,
@@ -656,84 +735,5 @@ def get_service_request_matches(
         "matches": [
             dict(match._mapping)
             for match in matches
-        ],
-    }
-@router.get("/my")
-def get_my_service_requests(
-    current_user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    # Only customers can access their service requests
-    if current_user.get("role") != "CUSTOMER":
-        raise HTTPException(
-            status_code=403,
-            detail="Only customers can access customer service requests",
-        )
-
-    user_id = current_user.get("sub")
-
-    if not user_id:
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid customer authentication",
-        )
-
-    query = text("""
-        SELECT
-            sr.id,
-            sr.service_id,
-            s.name AS service_name,
-            sc.name AS category_name,
-            sr.title,
-            sr.description,
-            sr.address_line1,
-            sr.address_line2,
-            sr.city,
-            sr.state,
-            sr.pincode,
-            sr.search_radius_meters,
-            sr.status,
-            sr.preferred_date,
-            sr.preferred_time_start,
-            sr.preferred_time_end,
-            sr.created_at,
-            sr.updated_at,
-
-            (
-                SELECT COUNT(*)
-                FROM jobs j
-                WHERE j.service_request_id = sr.id
-            ) AS job_count
-
-        FROM service_requests sr
-
-        JOIN customers c
-            ON c.id = sr.customer_id
-
-        JOIN services s
-            ON s.id = sr.service_id
-
-        JOIN service_categories sc
-            ON sc.id = s.category_id
-
-        WHERE
-            c.user_id = :user_id
-
-        ORDER BY
-            sr.created_at DESC;
-    """)
-
-    rows = db.execute(
-        query,
-        {"user_id": user_id},
-    ).mappings().all()
-
-    return {
-        "status": "success",
-        "customer_user_id": user_id,
-        "total_requests": len(rows),
-        "service_requests": [
-            dict(row)
-            for row in rows
         ],
     }

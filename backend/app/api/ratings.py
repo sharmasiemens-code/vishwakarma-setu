@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.db.database import get_db
 from app.core.security import get_current_user
+from app.core.notifications import create_notification
 
 
 router = APIRouter(
@@ -160,6 +161,31 @@ def create_rating(
             },
         )
 
+        # Get technician user ID for notification
+        technician_user_query = text("""
+            SELECT user_id
+            FROM technicians
+            WHERE id = :technician_id
+        """)
+
+        technician_user_id = db.execute(
+            technician_user_query,
+            {
+                "technician_id": job["technician_id"],
+            },
+        ).scalar()
+
+        # Notify technician about the new rating
+        if technician_user_id:
+            create_notification(
+                db=db,
+                user_id=str(technician_user_id),
+                title="New Rating Received",
+                message="Customer has rated your completed service.",
+                notification_type="RATING_RECEIVED",
+                reference_id=str(request.job_id),
+            )
+
         db.commit()
 
         return {
@@ -174,7 +200,6 @@ def create_rating(
             status_code=500,
             detail="Unable to submit rating",
         )
-
 @router.get("/job/{job_id}")
 def get_job_rating(
     job_id: str,

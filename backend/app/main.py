@@ -7,6 +7,7 @@ from app.api.jobs import router as jobs_router
 from app.api.technicians import router as technicians_router
 from app.api.auth import router as auth_router
 from app.api.ratings import router as ratings_router
+from app.api.notifications import router as notifications_router
 
 
 
@@ -23,7 +24,7 @@ app.include_router(service_requests_router)
 app.include_router(jobs_router)
 app.include_router(technicians_router)
 app.include_router(ratings_router)
-
+app.include_router(notifications_router)
 
 @app.get("/")
 def root():

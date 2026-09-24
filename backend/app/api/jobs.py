@@ -5,6 +5,8 @@ from sqlalchemy.orm import Session
 
 from app.db.database import get_db
 from app.core.security import get_current_user
+from app.core.notifications import create_notification
+
 
 router = APIRouter(
     prefix="/jobs",
@@ -286,14 +288,24 @@ def create_job(
             },
         )
 
+        # Notify technician about new job assignment
+        create_notification(
+            db=db,
+            user_id=str(technician.user_id),
+            title="New Job Assigned",
+            message="A new service job has been assigned to you.",
+            notification_type="JOB_ASSIGNED",
+            reference_id=str(job.id),
+        )
+
         db.commit()
 
         return {
-    "status": "success",
-    "message": "Job created and assigned successfully",
-    "distance_km": distance_km,
-    "job": dict(job._mapping),
-}
+            "status": "success",
+            "message": "Job created and assigned successfully",
+            "distance_km": distance_km,
+            "job": dict(job._mapping),
+        }
 
     except Exception as exc:
         db.rollback()
@@ -465,16 +477,38 @@ def respond_to_job(
                 :remarks
             );
         """)
-
         db.execute(
             history_query,
-                        {
+            {
                 "job_id": job_id,
                 "technician_id": technician_id,
                 "new_status": new_status,
                 "remarks": remarks,
             },
         )
+
+        # 5. Create notification for the customer
+        if action == "ACCEPT":
+            customer_user_query = text("""
+                SELECT user_id
+                FROM customers
+                WHERE id = :customer_id
+            """)
+
+            customer_user_id = db.execute(
+                customer_user_query,
+                {"customer_id": str(job.customer_id)},
+            ).scalar()
+
+            if customer_user_id:
+                create_notification(
+                    db=db,
+                    user_id=str(customer_user_id),
+                    title="Job Accepted",
+                    message="Your technician has accepted your service job.",
+                    notification_type="JOB_ACCEPTED",
+                    reference_id=str(job_id),
+                )
 
         db.commit()
 
@@ -748,6 +782,56 @@ def update_job_status(
                 "remarks": remarks,
             },
         )
+
+        # Create notification for customer
+        customer_user_query = text("""
+            SELECT user_id
+            FROM customers
+            WHERE id = :customer_id
+        """)
+
+        customer_user_id = db.execute(
+            customer_user_query,
+            {"customer_id": str(job.customer_id)},
+        ).scalar()
+
+        if customer_user_id:
+            notification_messages = {
+                "ON_THE_WAY": (
+                    "Technician On The Way",
+                    "Your technician is on the way to your location.",
+                    "TECHNICIAN_ON_THE_WAY",
+                ),
+                "ARRIVED": (
+                    "Technician Arrived",
+                    "Your technician has arrived at your location.",
+                    "TECHNICIAN_ARRIVED",
+                ),
+                "IN_PROGRESS": (
+                    "Work Started",
+                    "Your technician has started working on your service request.",
+                    "JOB_IN_PROGRESS",
+                ),
+                "COMPLETED": (
+                    "Job Completed",
+                    "Your service job has been completed successfully.",
+                    "JOB_COMPLETED",
+                ),
+            }
+
+            notification_data = notification_messages.get(new_status)
+
+            if notification_data:
+                title, message, notification_type = notification_data
+
+                create_notification(
+                    db=db,
+                    user_id=str(customer_user_id),
+                    title=title,
+                    message=message,
+                    notification_type=notification_type,
+                    reference_id=str(job_id),
+                )
 
         db.commit()
 
