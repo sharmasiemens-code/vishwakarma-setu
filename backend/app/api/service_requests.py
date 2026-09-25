@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from uuid import UUID
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -285,7 +286,7 @@ def get_my_service_requests(
     }
 @router.get("/{request_id}")
 def get_my_service_request(
-    request_id: str,
+    request_id: UUID,
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -384,7 +385,7 @@ def get_my_service_request(
 
 @router.get("/{request_id}/summary")
 def get_service_request_summary(
-    request_id: str,
+    request_id: UUID,
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -580,7 +581,7 @@ def get_service_request_summary(
     }
 @router.get("/{request_id}/matches")
 def get_service_request_matches(
-    request_id: str,
+    request_id: UUID,
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
