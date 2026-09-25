@@ -1,7 +1,10 @@
 from datetime import datetime, timedelta, timezone
 import os
 
+from dotenv import load_dotenv
 from jose import JWTError, jwt
+
+load_dotenv()
 from passlib.context import CryptContext
 
 
@@ -13,10 +16,12 @@ pwd_context = CryptContext(
 
 
 # JWT configuration
-SECRET_KEY = os.getenv(
-    "JWT_SECRET_KEY",
-    "CHANGE_THIS_SECRET_KEY_IN_ENV"
-)
+SECRET_KEY = os.getenv("JWT_SECRET_KEY")
+
+if not SECRET_KEY:
+    raise RuntimeError(
+        "JWT_SECRET_KEY is not configured in the environment."
+    )
 
 ALGORITHM = "HS256"
 
