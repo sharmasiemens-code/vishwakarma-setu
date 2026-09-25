@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from uuid import UUID
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -75,7 +76,7 @@ def get_services(db: Session = Depends(get_db)):
 
 @router.get("/{service_id}")
 def get_service(
-    service_id: str,
+    service_id: UUID,
     db: Session = Depends(get_db),
 ):
     service_query = text("""
