@@ -201,7 +201,7 @@ def create_service_request(
 
         raise HTTPException(
             status_code=500,
-            detail=f"Could not create service request: {str(exc)}",
+            detail="Could not create service request",
         )
 
 @router.get("/my")

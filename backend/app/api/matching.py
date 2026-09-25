@@ -170,5 +170,5 @@ AND tl.last_seen_at >= NOW() - INTERVAL '10 minutes'
     except Exception as exc:
         raise HTTPException(
             status_code=500,
-            detail=f"Matching query failed: {str(exc)}",
+            detail="Matching query failed",
         )

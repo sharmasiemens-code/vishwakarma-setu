@@ -318,7 +318,7 @@ def create_job(
 
         raise HTTPException(
             status_code=500,
-            detail=f"Could not create job: {str(exc)}",
+            detail="Could not respond to job",
         )
 
 
@@ -527,7 +527,7 @@ def respond_to_job(
 
         raise HTTPException(
             status_code=500,
-            detail=f"Could not update job: {str(exc)}",
+            detail="Could not respond to job",
         )
 class JobStatusUpdate(BaseModel):
     new_status: str
@@ -846,7 +846,7 @@ def update_job_status(
 
         raise HTTPException(
             status_code=500,
-            detail=f"Could not update job status: {str(exc)}",
+            detail="Could not update job status",
         )
 @router.get("/{job_id}/history")
 def get_job_history(
