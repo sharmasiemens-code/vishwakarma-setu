@@ -1,5 +1,10 @@
+import os
+
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
+load_dotenv()
 
 from app.api.matching import router as matching_router
 from app.api.services import router as services_router
@@ -12,10 +17,15 @@ from app.api.notifications import router as notifications_router
 
 
 
+docs_enabled = os.getenv("ENABLE_API_DOCS", "true").lower() == "true"
+
 app = FastAPI(
     title="Technical Expert Marketplace API",
     description="Backend API for the Technical Expert Marketplace MVP",
     version="0.1.0",
+    docs_url="/docs" if docs_enabled else None,
+    redoc_url="/redoc" if docs_enabled else None,
+    openapi_url="/openapi.json" if docs_enabled else None,
 )
 app.add_middleware(
     CORSMiddleware,
