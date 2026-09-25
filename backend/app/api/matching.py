@@ -3,7 +3,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
-
+from app.core.security import get_current_user
 
 router = APIRouter(
     prefix="/matching",
@@ -17,6 +17,7 @@ def find_matching_technicians(
     latitude: float = Query(..., ge=-90, le=90),
     longitude: float = Query(..., ge=-180, le=180),
     radius_km: float = Query(10, gt=0, le=50),
+    current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
@@ -29,6 +30,13 @@ def find_matching_technicians(
     - are active and verified
     - are within the requested radius
     """
+
+    if current_user.get("role") != "CUSTOMER":
+     raise HTTPException(
+         status_code=403,
+         detail="Only customers can search for technicians",
+        
+)
 
     radius_meters = radius_km * 1000
 
