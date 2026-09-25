@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from uuid import UUID
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -13,7 +14,7 @@ router = APIRouter(
 
 @router.get("/technicians")
 def find_matching_technicians(
-    service_id: str = Query(..., description="Service UUID"),
+    service_id: UUID = Query(..., description="Service UUID"),
     latitude: float = Query(..., ge=-90, le=90),
     longitude: float = Query(..., ge=-180, le=180),
     radius_km: float = Query(10, gt=0, le=50),
