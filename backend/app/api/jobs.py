@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from uuid import UUID
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -324,7 +325,7 @@ def create_job(
 
 @router.post("/{job_id}/respond")
 def respond_to_job(
-    job_id: str,
+    job_id: UUID,
     request: JobResponse,
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -535,7 +536,7 @@ class JobStatusUpdate(BaseModel):
 
 @router.post("/{job_id}/status")
 def update_job_status(
-    job_id: str,
+    job_id: UUID,
     request: JobStatusUpdate,
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -850,7 +851,7 @@ def update_job_status(
         )
 @router.get("/{job_id}/history")
 def get_job_history(
-    job_id: str,
+    job_id: UUID,
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -923,7 +924,7 @@ def get_job_history(
 
 @router.get("/{job_id}")
 def get_job(
-    job_id: str,
+    job_id: UUID,
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
