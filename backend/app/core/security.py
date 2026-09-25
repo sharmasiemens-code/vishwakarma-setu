@@ -96,6 +96,10 @@ def decode_access_token(token: str) -> dict:
         return {}
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+
+from app.db.database import SessionLocal
 
 
 security = HTTPBearer()
@@ -105,7 +109,8 @@ def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security)
 ) -> dict:
     """
-    Validate JWT access token and return its payload.
+    Validate JWT access token and verify that the user account
+    is still active.
     """
 
     token = credentials.credentials
@@ -129,4 +134,45 @@ def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    return payload
+    db: Session = SessionLocal()
+
+    try:
+        user = db.execute(
+            text("""
+                SELECT
+                    id,
+                    role,
+                    is_active,
+                    is_verified
+                FROM users
+                WHERE id = :user_id
+            """),
+            {
+                "user_id": user_id
+            }
+        ).mappings().first()
+
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User account not found",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+        if not user["is_active"]:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="User account is inactive",
+            )
+
+        if user["role"] != role:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid access token",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+        return payload
+
+    finally:
+        db.close()
