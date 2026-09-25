@@ -1,11 +1,12 @@
 from datetime import datetime, timedelta, timezone
 import os
+from uuid import uuid4
 
 from dotenv import load_dotenv
 from jose import JWTError, jwt
+from passlib.context import CryptContext
 
 load_dotenv()
-from passlib.context import CryptContext
 
 
 # Password hashing configuration
@@ -57,15 +58,19 @@ def create_access_token(
     """
     to_encode = data.copy()
 
+    issued_at = datetime.now(timezone.utc)
+
     if expires_delta:
-        expire = datetime.now(timezone.utc) + expires_delta
+        expire = issued_at + expires_delta
     else:
-        expire = datetime.now(timezone.utc) + timedelta(
+        expire = issued_at + timedelta(
             minutes=ACCESS_TOKEN_EXPIRE_MINUTES
         )
 
     to_encode.update({
-        "exp": expire
+        "iat": issued_at,
+        "exp": expire,
+        "jti": str(uuid4()),
     })
 
     return jwt.encode(
