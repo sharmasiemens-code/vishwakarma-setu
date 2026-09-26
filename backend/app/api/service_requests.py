@@ -15,7 +15,7 @@ router = APIRouter(
 
 
 class ServiceRequestCreate(BaseModel):
-    service_id: str
+    service_id: UUID
 
     title: str = Field(..., min_length=3, max_length=200)
     description: str | None = None
