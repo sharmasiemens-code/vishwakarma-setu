@@ -825,7 +825,7 @@ def get_my_technician_skills(
     }
 @router.get("/{technician_id}/skills")
 def get_technician_skills(
-    technician_id: str,
+    technician_id: UUID,
     db: Session = Depends(get_db)
 ):
     query = text("""
