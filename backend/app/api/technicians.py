@@ -573,7 +573,7 @@ def get_my_technician_services(
     }
 @router.get("/{technician_id}/services")
 def get_technician_services(
-    technician_id: str,
+    technician_id: UUID,
     db: Session = Depends(get_db)
 ):
     # Verify technician exists
