@@ -264,7 +264,7 @@ def get_job_rating(
     }
 @router.get("/technician/{technician_id}")
 def get_technician_ratings(
-    technician_id: str,
+    technician_id: UUID,
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
