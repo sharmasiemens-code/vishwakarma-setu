@@ -20,11 +20,11 @@ class ServiceRequestCreate(BaseModel):
     title: str = Field(..., min_length=3, max_length=200)
     description: str | None = Field(None, max_length=2000)
 
-    address_line1: str
-    address_line2: str | None = None
-    city: str
-    state: str
-    pincode: str | None = None
+    address_line1: str = Field(..., min_length=3, max_length=300)
+    address_line2: str | None = Field(None, max_length=300)
+    city: str = Field(..., min_length=2, max_length=100)
+    state: str = Field(..., min_length=2, max_length=100)
+    pincode: str | None = Field(None, min_length=3, max_length=10)
 
     latitude: float = Field(..., ge=-90, le=90)
     longitude: float = Field(..., ge=-180, le=180)
