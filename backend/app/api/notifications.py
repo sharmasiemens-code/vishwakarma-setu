@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from uuid import UUID
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -85,7 +86,7 @@ def get_unread_count(
 
 @router.post("/{notification_id}/read")
 def mark_notification_read(
-    notification_id: str,
+    notification_id: UUID,
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
