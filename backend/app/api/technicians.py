@@ -98,7 +98,7 @@ def update_my_availability(
     }
 @router.post("/{technician_id}/availability")
 def update_availability(
-    technician_id: str,
+    technician_id: UUID,
     data: AvailabilityUpdate,
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
