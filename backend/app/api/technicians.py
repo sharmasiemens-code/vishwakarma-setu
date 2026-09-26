@@ -296,7 +296,7 @@ def update_my_location(
 
 @router.post("/{technician_id}/location")
 def update_location(
-    technician_id: str,
+    technician_id: UUID,
     data: LocationUpdate,
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -317,7 +317,7 @@ def update_location(
         )
 
     # Technician can update only their own location
-    if technician_id != logged_in_technician_id:
+    if str(technician_id) != str(logged_in_technician_id):
         raise HTTPException(
             status_code=403,
             detail="You are not authorized to update this technician's location"
