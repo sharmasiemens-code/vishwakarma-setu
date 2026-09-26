@@ -724,7 +724,7 @@ def get_my_technician_profile(
 
 @router.get("/{technician_id}")
 def get_technician(
-    technician_id: str,
+    technician_id: UUID,
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
