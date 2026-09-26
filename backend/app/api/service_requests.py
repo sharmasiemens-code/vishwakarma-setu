@@ -3,6 +3,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+from datetime import date, time
 
 from app.db.database import get_db
 from app.core.security import get_current_user
@@ -29,9 +30,9 @@ class ServiceRequestCreate(BaseModel):
     latitude: float = Field(..., ge=-90, le=90)
     longitude: float = Field(..., ge=-180, le=180)
 
-    preferred_date: str | None = None
-    preferred_time_start: str | None = None
-    preferred_time_end: str | None = None
+    preferred_date: date | None = None
+    preferred_time_start: time | None = None
+    preferred_time_end: time | None = None
 
 
 @router.post("")
