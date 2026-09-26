@@ -16,7 +16,7 @@ router = APIRouter(
 
 
 class JobCreate(BaseModel):
-    service_request_id: str
+    service_request_id: UUID
     technician_id: str
     estimated_amount: float | None = None
 
