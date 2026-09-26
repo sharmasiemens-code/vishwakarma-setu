@@ -108,7 +108,16 @@ def create_service_request(
             status_code=404,
             detail="Service not found or inactive",
         )
-
+    # Validate preferred time window
+    if (
+        request.preferred_time_start is not None
+        and request.preferred_time_end is not None
+        and request.preferred_time_end <= request.preferred_time_start
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail="Preferred end time must be later than preferred start time",
+        )
     # Create service request
     insert_query = text("""
         INSERT INTO service_requests (
