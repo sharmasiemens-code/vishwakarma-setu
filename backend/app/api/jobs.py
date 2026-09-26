@@ -1,8 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException
 from uuid import UUID
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+from enum import Enum
 
 from app.db.database import get_db
 from app.core.security import get_current_user
@@ -530,9 +531,23 @@ def respond_to_job(
             status_code=500,
             detail="Could not respond to job",
         )
+class JobStatus(str, Enum):
+    ON_THE_WAY = "ON_THE_WAY"
+    ARRIVED = "ARRIVED"
+    IN_PROGRESS = "IN_PROGRESS"
+    COMPLETED = "COMPLETED"
+
+
 class JobStatusUpdate(BaseModel):
-    new_status: str
+    new_status: JobStatus
     remarks: str | None = None
+
+    @field_validator("new_status", mode="before")
+    @classmethod
+    def normalize_status(cls, value):
+        if isinstance(value, str):
+            return value.strip().upper()
+        return value
 
 @router.post("/{job_id}/status")
 def update_job_status(
