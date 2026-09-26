@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+from uuid import UUID
 
 from app.db.database import get_db
 from app.core.security import get_current_user
@@ -15,7 +16,7 @@ router = APIRouter(
 
 
 class RatingCreate(BaseModel):
-    job_id: str
+    job_id: UUID
     rating: int = Field(..., ge=1, le=5)
     review: str | None = None
 
