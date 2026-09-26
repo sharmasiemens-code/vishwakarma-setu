@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 from uuid import UUID
@@ -18,8 +18,8 @@ class AvailabilityUpdate(BaseModel):
     availability_status: str
 
 class LocationUpdate(BaseModel):
-    latitude: float
-    longitude: float
+    latitude: float = Field(..., ge=-90, le=90)
+    longitude: float = Field(..., ge=-180, le=180)
     accuracy_meters: float | None = None
     battery_percent: int | None = None
 
