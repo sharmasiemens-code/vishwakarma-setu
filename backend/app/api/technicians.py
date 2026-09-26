@@ -899,7 +899,7 @@ def get_my_technician_tools(
     }
 @router.get("/{technician_id}/tools")
 def get_technician_tools(
-    technician_id: str,
+    technician_id: UUID,
     db: Session = Depends(get_db)
 ):
     query = text("""
