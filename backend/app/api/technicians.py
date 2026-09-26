@@ -1,8 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 from uuid import UUID
+from enum import Enum
 
 from app.db.database import get_db
 from app.core.security import get_current_user
@@ -14,8 +15,21 @@ router = APIRouter(
 )
 
 
+class AvailabilityStatus(str, Enum):
+    ONLINE = "ONLINE"
+    BUSY = "BUSY"
+    OFFLINE = "OFFLINE"
+
+
 class AvailabilityUpdate(BaseModel):
-    availability_status: str
+    availability_status: AvailabilityStatus
+
+    @field_validator("availability_status", mode="before")
+    @classmethod
+    def normalize_status(cls, value):
+        if isinstance(value, str):
+            return value.strip().upper()
+        return value
 
 class LocationUpdate(BaseModel):
     latitude: float = Field(..., ge=-90, le=90)
