@@ -1027,7 +1027,7 @@ AND cu.is_verified = TRUE
     }
 @router.get("/customer/{customer_id}")
 def get_customer_jobs(
-    customer_id: str,
+    customer_id: UUID,
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
