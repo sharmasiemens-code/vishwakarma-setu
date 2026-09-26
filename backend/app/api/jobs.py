@@ -1314,7 +1314,7 @@ def get_technician_jobs(
     }
 @router.get("/my/{job_id}")
 def get_my_customer_job(
-    job_id: str,
+    job_id: UUID,
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
