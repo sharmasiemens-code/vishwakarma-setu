@@ -18,7 +18,7 @@ router = APIRouter(
 class RatingCreate(BaseModel):
     job_id: UUID
     rating: int = Field(..., ge=1, le=5)
-    review: str | None = None
+    review: str | None = Field(None, max_length=1000)
 
 
 @router.post("")

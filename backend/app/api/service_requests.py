@@ -18,7 +18,7 @@ class ServiceRequestCreate(BaseModel):
     service_id: UUID
 
     title: str = Field(..., min_length=3, max_length=200)
-    description: str | None = None
+    description: str | None = Field(None, max_length=2000)
 
     address_line1: str
     address_line2: str | None = None

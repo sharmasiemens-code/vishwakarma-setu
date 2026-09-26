@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from uuid import UUID
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 from enum import Enum
@@ -24,7 +24,7 @@ class JobCreate(BaseModel):
 
 class JobResponse(BaseModel):
     action: str
-    remarks: str | None = None
+    remarks: str | None = Field(None, max_length=1000)
 
 @router.post("")
 def create_job(
@@ -540,7 +540,7 @@ class JobStatus(str, Enum):
 
 class JobStatusUpdate(BaseModel):
     new_status: JobStatus
-    remarks: str | None = None
+    remarks: str | None = Field(None, max_length=1000)
 
     @field_validator("new_status", mode="before")
     @classmethod
