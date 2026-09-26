@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+from uuid import UUID
 
 from app.db.database import get_db
 from app.core.security import get_current_user
@@ -420,7 +421,7 @@ def update_location(
 
 @router.get("/{technician_id}/location")
 def get_location(
-    technician_id: str,
+    technician_id: UUID,
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
