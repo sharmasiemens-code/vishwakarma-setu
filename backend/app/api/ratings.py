@@ -203,7 +203,7 @@ def create_rating(
         )
 @router.get("/job/{job_id}")
 def get_job_rating(
-    job_id: str,
+    job_id: UUID,
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
