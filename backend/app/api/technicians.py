@@ -71,7 +71,24 @@ def update_my_availability(
             status_code=400,
             detail="Invalid availability status. Use ONLINE, BUSY, or OFFLINE."
         )
+    if status == "ONLINE":
+        fresh_location = db.execute(
+            text("""
+                SELECT technician_id
+                FROM technician_locations
+                WHERE technician_id = :technician_id
+                  AND last_seen_at >= now() - INTERVAL '10 minutes'
+            """),
+            {
+                "technician_id": technician_id
+            }
+        ).mappings().first()
 
+        if not fresh_location:
+            raise HTTPException(
+                status_code=409,
+                detail="Fresh GPS location is required to go ONLINE. Please update your location and try again."
+            )
     technician = db.execute(
         text("""
             SELECT id
@@ -152,7 +169,24 @@ def update_availability(
             status_code=400,
             detail="Invalid availability status. Use ONLINE, BUSY, or OFFLINE."
         )
+    if status == "ONLINE":
+        fresh_location = db.execute(
+            text("""
+                SELECT technician_id
+                FROM technician_locations
+                WHERE technician_id = :technician_id
+                  AND last_seen_at >= now() - INTERVAL '10 minutes'
+            """),
+            {
+                "technician_id": technician_id
+            }
+        ).mappings().first()
 
+        if not fresh_location:
+            raise HTTPException(
+                status_code=409,
+                detail="Fresh GPS location is required to go ONLINE. Please update your location and try again."
+            )
     technician = db.execute(
         text("""
             SELECT id
