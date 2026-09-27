@@ -323,6 +323,184 @@ def create_job(
             detail="Could not respond to job",
         )
 
+class JobCancellationRequest(BaseModel):
+    reason: str | None = Field(None, max_length=1000)
+
+
+@router.post("/{job_id}/cancel")
+def cancel_job_by_customer(
+    job_id: UUID,
+    request: JobCancellationRequest,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    # Only customers can cancel their jobs
+    if current_user.get("role") != "CUSTOMER":
+        raise HTTPException(
+            status_code=403,
+            detail="Only customers can cancel jobs",
+        )
+
+    user_id = current_user.get("sub")
+
+    if not user_id:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid customer authentication",
+        )
+
+    # 1. Get job and verify customer ownership
+    job_query = text("""
+        SELECT
+            j.id,
+            j.service_request_id,
+            j.technician_id,
+            j.customer_id,
+            j.status
+        FROM jobs j
+        JOIN customers c
+            ON c.id = j.customer_id
+        JOIN users u
+            ON u.id = c.user_id
+        WHERE
+            j.id = :job_id
+            AND c.user_id = :user_id
+            AND u.is_active = TRUE
+            AND u.is_verified = TRUE;
+    """)
+
+    job = db.execute(
+        job_query,
+        {
+            "job_id": job_id,
+            "user_id": user_id,
+        },
+    ).fetchone()
+
+    if not job:
+        raise HTTPException(
+            status_code=404,
+            detail="Job not found for this customer",
+        )
+
+    # 2. Validate cancellation status
+    allowed_statuses = {
+        "ASSIGNED",
+        "ACCEPTED",
+        "ON_THE_WAY",
+    }
+
+    if job.status not in allowed_statuses:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Job cannot be cancelled from status: {job.status}",
+        )
+
+    reason = request.reason or "Cancelled by customer"
+
+    try:
+        # 3. Cancel the job
+        update_query = text("""
+            UPDATE jobs
+            SET
+                status = 'CANCELLED',
+                cancelled_at = now(),
+                cancellation_reason = :reason,
+                updated_at = now()
+            WHERE id = :job_id
+            RETURNING
+                id,
+                service_request_id,
+                technician_id,
+                customer_id,
+                status,
+                estimated_amount,
+                assigned_at,
+                accepted_at,
+                cancelled_at,
+                cancellation_reason,
+                created_at,
+                updated_at;
+        """)
+
+        result = db.execute(
+            update_query,
+            {
+                "job_id": job_id,
+                "reason": reason,
+            },
+        )
+
+        updated_job = result.fetchone()
+
+        # 4. Add status history
+        history_query = text("""
+            INSERT INTO job_status_history (
+                job_id,
+                old_status,
+                new_status,
+                changed_by,
+                remarks
+            )
+            VALUES (
+                :job_id,
+                :old_status,
+                'CANCELLED',
+                :changed_by,
+                :remarks
+            );
+        """)
+
+        db.execute(
+            history_query,
+            {
+                "job_id": job_id,
+                "old_status": job.status,
+                "changed_by": user_id,
+                "remarks": reason,
+            },
+        )
+
+        # 5. Notify technician
+        technician_user_query = text("""
+            SELECT user_id
+            FROM technicians
+            WHERE id = :technician_id
+        """)
+
+        technician_user_id = db.execute(
+            technician_user_query,
+            {"technician_id": str(job.technician_id)},
+        ).scalar()
+
+        if technician_user_id:
+            create_notification(
+                db=db,
+                user_id=str(technician_user_id),
+                title="Job Cancelled",
+                message="The customer has cancelled your assigned service job.",
+                notification_type="JOB_CANCELLED",
+                reference_id=str(job_id),
+            )
+
+        db.commit()
+
+        return {
+            "status": "success",
+            "message": "Job cancelled successfully",
+            "job": dict(updated_job._mapping),
+        }
+
+    except HTTPException:
+        db.rollback()
+        raise
+
+    except Exception:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail="Could not cancel job",
+        )
 
 @router.post("/{job_id}/respond")
 def respond_to_job(
@@ -490,25 +668,37 @@ def respond_to_job(
         )
 
         # 5. Create notification for the customer
-        if action == "ACCEPT":
-            customer_user_query = text("""
-                SELECT user_id
-                FROM customers
-                WHERE id = :customer_id
-            """)
+        customer_user_query = text("""
+            SELECT user_id
+            FROM customers
+            WHERE id = :customer_id
+        """)
 
-            customer_user_id = db.execute(
-                customer_user_query,
-                {"customer_id": str(job.customer_id)},
-            ).scalar()
+        customer_user_id = db.execute(
+            customer_user_query,
+            {"customer_id": str(job.customer_id)},
+        ).scalar()
 
-            if customer_user_id:
+        if customer_user_id:
+            if action == "ACCEPT":
                 create_notification(
                     db=db,
                     user_id=str(customer_user_id),
                     title="Job Accepted",
                     message="Your technician has accepted your service job.",
                     notification_type="JOB_ACCEPTED",
+                    reference_id=str(job_id),
+                )
+            else:
+                create_notification(
+                    db=db,
+                    user_id=str(customer_user_id),
+                    title="Job Cancelled",
+                    message=(
+                        "The assigned technician has rejected your service job. "
+                        "You can select another available technician."
+                    ),
+                    notification_type="JOB_CANCELLED",
                     reference_id=str(job_id),
                 )
 
