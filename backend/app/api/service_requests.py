@@ -366,8 +366,17 @@ def get_my_service_request(
         JOIN service_categories sc
             ON sc.id = s.category_id
 
-        LEFT JOIN jobs j
-            ON j.service_request_id = sr.id
+        LEFT JOIN LATERAL (
+            SELECT
+                j1.id,
+                j1.status,
+                j1.estimated_amount,
+                j1.final_amount
+            FROM jobs j1
+            WHERE j1.service_request_id = sr.id
+            ORDER BY j1.created_at DESC
+            LIMIT 1
+        ) j ON TRUE
 
         WHERE
             sr.id = :request_id
@@ -462,8 +471,17 @@ def get_service_request_summary(
         JOIN service_categories sc
             ON sc.id = s.category_id
 
-        LEFT JOIN jobs j
-            ON j.service_request_id = sr.id
+                LEFT JOIN LATERAL (
+            SELECT
+                j1.id,
+                j1.status,
+                j1.estimated_amount,
+                j1.final_amount
+            FROM jobs j1
+            WHERE j1.service_request_id = sr.id
+            ORDER BY j1.created_at DESC
+            LIMIT 1
+        ) j ON TRUE
 
         WHERE
             sr.id = :request_id
