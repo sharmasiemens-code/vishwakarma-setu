@@ -1429,6 +1429,101 @@ def get_my_incoming_jobs(
         "total": len(results),
         "jobs": [dict(row) for row in results],
     }
+@router.get("/technician/me/{job_id}")
+def get_my_technician_job(
+    job_id: UUID,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if current_user.get("role") != "TECHNICIAN":
+        raise HTTPException(
+            status_code=403,
+            detail="Only technicians can access technician jobs",
+        )
+
+    technician_id = current_user.get("technician_id")
+
+    if not technician_id:
+        raise HTTPException(
+            status_code=403,
+            detail="Technician profile not found in access token",
+        )
+
+    query = text("""
+        SELECT
+            j.id AS job_id,
+            j.service_request_id,
+            j.technician_id,
+            j.customer_id,
+            j.status,
+            j.estimated_amount,
+            j.final_amount,
+            j.assigned_at,
+            j.accepted_at,
+            j.started_at,
+            j.completed_at,
+            j.cancelled_at,
+            j.cancellation_reason,
+            j.created_at,
+            j.updated_at,
+
+            sr.title AS service_request_title,
+            sr.description AS service_request_description,
+            sr.address_line1,
+            sr.address_line2,
+            sr.city,
+            sr.state,
+            sr.pincode,
+            sr.preferred_date,
+            sr.preferred_time_start,
+            sr.preferred_time_end,
+
+            s.id AS service_id,
+            s.name AS service_name,
+
+            cu.full_name AS customer_name,
+            cu.phone AS customer_phone
+
+        FROM jobs j
+
+        JOIN service_requests sr
+            ON sr.id = j.service_request_id
+
+        JOIN services s
+            ON s.id = sr.service_id
+
+        JOIN customers c
+            ON c.id = j.customer_id
+
+        JOIN users cu
+            ON cu.id = c.user_id
+
+        WHERE
+            j.id = :job_id
+            AND j.technician_id = :technician_id
+            AND cu.is_active = TRUE
+            AND cu.is_verified = TRUE
+    """)
+
+    result = db.execute(
+        query,
+        {
+            "job_id": job_id,
+            "technician_id": technician_id,
+        },
+    ).mappings().first()
+
+    if not result:
+        raise HTTPException(
+            status_code=404,
+            detail="Job not found",
+        )
+
+    return {
+        "status": "success",
+        "job": dict(result),
+    }
+
 @router.get("/technician/me")
 def get_my_technician_jobs(
     current_user: dict = Depends(get_current_user),
