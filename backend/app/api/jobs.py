@@ -345,10 +345,10 @@ def create_job(
     except Exception as exc:
         db.rollback()
 
-        if "jobs_service_request_id_key" in str(exc):
+        if "idx_jobs_one_active_per_service_request" in str(exc):
             raise HTTPException(
                 status_code=409,
-                detail="This service request has already been assigned to a job",
+                detail="This service request already has an active job",
             )
 
         raise HTTPException(
