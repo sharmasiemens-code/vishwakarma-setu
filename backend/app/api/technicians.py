@@ -973,3 +973,217 @@ def get_technician_tools(
         "total": len(results),
         "tools": [dict(row) for row in results]
     }
+
+@router.get("/me/dashboard")
+def get_my_technician_dashboard(
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    # 1. Only technicians can access this dashboard
+    if current_user.get("role") != "TECHNICIAN":
+        raise HTTPException(
+            status_code=403,
+            detail="Technician access required",
+        )
+
+    technician_id = current_user.get("technician_id")
+
+    if not technician_id:
+        raise HTTPException(
+            status_code=403,
+            detail="Technician profile not found in access token",
+        )
+
+    # 2. Technician profile
+    profile_query = text("""
+        SELECT
+            t.id AS technician_id,
+            u.full_name,
+            t.business_name,
+            t.experience_years,
+            t.bio,
+            t.service_radius_km,
+            t.kyc_status,
+            t.availability_status,
+            t.rating_average,
+            t.total_jobs
+        FROM technicians t
+        JOIN users u
+            ON u.id = t.user_id
+        WHERE
+            t.id = :technician_id
+            AND u.is_active = TRUE
+            AND u.is_verified = TRUE
+        LIMIT 1
+    """)
+
+    profile = db.execute(
+        profile_query,
+        {"technician_id": technician_id},
+    ).mappings().first()
+
+    if not profile:
+        raise HTTPException(
+            status_code=404,
+            detail="Technician profile not found",
+        )
+
+    # 3. Job status summary
+    summary_query = text("""
+        SELECT
+            COUNT(*) AS total_jobs,
+
+            COUNT(*) FILTER (
+                WHERE status = 'ASSIGNED'
+            ) AS assigned_jobs,
+
+            COUNT(*) FILTER (
+                WHERE status = 'ACCEPTED'
+            ) AS accepted_jobs,
+
+            COUNT(*) FILTER (
+                WHERE status = 'ON_THE_WAY'
+            ) AS on_the_way_jobs,
+
+            COUNT(*) FILTER (
+                WHERE status = 'ARRIVED'
+            ) AS arrived_jobs,
+
+            COUNT(*) FILTER (
+                WHERE status = 'IN_PROGRESS'
+            ) AS in_progress_jobs,
+
+            COUNT(*) FILTER (
+                WHERE status = 'COMPLETED'
+            ) AS completed_jobs,
+
+            COUNT(*) FILTER (
+                WHERE status = 'CANCELLED'
+            ) AS cancelled_jobs
+
+        FROM jobs
+        WHERE technician_id = :technician_id
+    """)
+
+    summary = db.execute(
+        summary_query,
+        {"technician_id": technician_id},
+    ).mappings().first()
+
+    # 4. Current active job
+    active_job_query = text("""
+        SELECT
+            j.id AS job_id,
+            j.service_request_id,
+            j.status,
+            j.estimated_amount,
+            j.final_amount,
+            j.assigned_at,
+            j.accepted_at,
+            j.started_at,
+
+            sr.title AS service_request_title,
+            sr.description AS service_request_description,
+            sr.address_line1,
+            sr.address_line2,
+            sr.city,
+            sr.state,
+            sr.pincode,
+
+            s.id AS service_id,
+            s.name AS service_name,
+
+            u.full_name AS customer_name,
+            u.phone AS customer_phone
+
+        FROM jobs j
+
+        JOIN service_requests sr
+            ON sr.id = j.service_request_id
+
+        JOIN services s
+            ON s.id = sr.service_id
+
+        JOIN customers c
+            ON c.id = j.customer_id
+
+        JOIN users u
+            ON u.id = c.user_id
+
+        WHERE
+            j.technician_id = :technician_id
+            AND j.status IN (
+                'ASSIGNED',
+                'ACCEPTED',
+                'ON_THE_WAY',
+                'ARRIVED',
+                'IN_PROGRESS'
+            )
+
+        ORDER BY j.created_at DESC
+        LIMIT 1
+    """)
+
+    active_job = db.execute(
+        active_job_query,
+        {"technician_id": technician_id},
+    ).mappings().first()
+
+    # 5. Recent jobs
+    recent_jobs_query = text("""
+        SELECT
+            j.id AS job_id,
+            j.service_request_id,
+            j.status,
+            j.estimated_amount,
+            j.final_amount,
+            j.assigned_at,
+            j.accepted_at,
+            j.started_at,
+            j.completed_at,
+            j.cancelled_at,
+            j.created_at,
+
+            sr.title AS service_request_title,
+            sr.city,
+            sr.state,
+
+            s.id AS service_id,
+            s.name AS service_name,
+
+            u.full_name AS customer_name
+
+        FROM jobs j
+
+        JOIN service_requests sr
+            ON sr.id = j.service_request_id
+
+        JOIN services s
+            ON s.id = sr.service_id
+
+        JOIN customers c
+            ON c.id = j.customer_id
+
+        JOIN users u
+            ON u.id = c.user_id
+
+        WHERE j.technician_id = :technician_id
+
+        ORDER BY j.created_at DESC
+        LIMIT 10
+    """)
+
+    recent_jobs = db.execute(
+        recent_jobs_query,
+        {"technician_id": technician_id},
+    ).mappings().all()
+
+    return {
+        "status": "success",
+        "dashboard": {
+            "profile": dict(profile),
+            "job_summary": dict(summary),
+            "active_job": dict(active_job) if active_job else None,
+            "recent_jobs": [dict(job) for job in recent_jobs],
+        },
+    }
