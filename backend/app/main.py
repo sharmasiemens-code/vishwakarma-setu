@@ -1,9 +1,10 @@
 import os
+import asyncio
+from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
 load_dotenv()
 
 from app.api.matching import router as matching_router
@@ -14,14 +15,50 @@ from app.api.technicians import router as technicians_router
 from app.api.auth import router as auth_router
 from app.api.ratings import router as ratings_router
 from app.api.notifications import router as notifications_router
+from app.services.technician_presence import synchronize_technician_presence
+
+async def technician_presence_worker():
+    while True:
+        try:
+            result = await asyncio.to_thread(
+                synchronize_technician_presence
+            )
+
+            if result["offline_count"] > 0:
+                print(
+                    f"[TECHNICIAN PRESENCE] "
+                    f"Set {result['offline_count']} stale technician(s) OFFLINE"
+                )
+
+        except Exception as exc:
+            print(
+                f"[TECHNICIAN PRESENCE] Synchronization error: {exc}"
+            )
+
+        await asyncio.sleep(60)
 
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    worker_task = asyncio.create_task(
+        technician_presence_worker()
+    )
+
+    try:
+        yield
+    finally:
+        worker_task.cancel()
+
+        try:
+            await worker_task
+        except asyncio.CancelledError:
+            pass
 
 docs_enabled = os.getenv("ENABLE_API_DOCS", "true").lower() == "true"
 
 app = FastAPI(
-    title="Technical Expert Marketplace API",
-    description="Backend API for the Technical Expert Marketplace MVP",
+    lifespan=lifespan,
+    title="Technical Expert Marketplace API",    description="Backend API for the Technical Expert Marketplace MVP",
     version="0.1.0",
     docs_url="/docs" if docs_enabled else None,
     redoc_url="/redoc" if docs_enabled else None,
