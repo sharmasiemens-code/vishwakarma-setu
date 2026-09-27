@@ -225,7 +225,40 @@ def create_job(
             detail="Technician does not match the required skills and tools for this service",
         )
 
-    # 7. Create job
+    # 7. Only one active job is allowed per service request
+    active_job_query = text("""
+        SELECT id, status
+        FROM jobs
+        WHERE
+            service_request_id = :service_request_id
+            AND status IN (
+                'ASSIGNED',
+                'ACCEPTED',
+                'ON_THE_WAY',
+                'ARRIVED',
+                'IN_PROGRESS'
+            )
+        LIMIT 1;
+    """)
+
+    active_job = db.execute(
+        active_job_query,
+        {
+            "service_request_id": request.service_request_id,
+        },
+    ).fetchone()
+
+    if active_job:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "This service request already has an active job "
+                f"with status: {active_job.status}"
+            ),
+        )
+
+    # 8. Create job
+   
     insert_job_query = text("""
         INSERT INTO jobs (
             service_request_id,
