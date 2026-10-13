@@ -84,7 +84,7 @@ def login(data: LoginRequest, db: Session = Depends(get_db)):
     rows = db.execute(
         text("""
             SELECT id, full_name, email, phone, password_hash,
-                   role, is_active, is_verified
+                   role, is_active, is_verified, password_version
             FROM public.users
             WHERE """ + condition + """
             LIMIT 2
@@ -142,6 +142,7 @@ def login(data: LoginRequest, db: Session = Depends(get_db)):
         "sub": str(user["id"]),
         "role": user["role"],
         "technician_id": technician_id,
+        "password_version": user["password_version"],
     })
 
     return {
