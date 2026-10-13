@@ -283,3 +283,12 @@
 - Pending: concurrency, interrupted-upload recovery and orphan reconciliation.
 - Exceptional administrator override remains pending.
 - C32 remains paused.
+
+### Password management implementation — 2026-10-13
+- Manual Super Admin recovery for customer/technician accounts implemented.
+- Current-password changes available in both apps, including pending technicians.
+- Password-version JWT checks revoke prior sessions after reset/change.
+- Reset permission, identity confirmation, mandatory reason, atomic audit and stale-reset checks added.
+- PR_001_password_recovery.sql must follow existing migrations before restarting backend.
+- No password viewing or automated email/SMS recovery added.
+- Live migration and browser acceptance remain pending; see PASSWORD_RECOVERY.md.
