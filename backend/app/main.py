@@ -23,6 +23,7 @@ from app.api.job_disputes import router as job_disputes_router
 from app.api.dispute_photos import router as dispute_photos_router
 from app.api.technicians import router as technicians_router
 from app.api.auth import router as auth_router
+from app.api.passwords import router as passwords_router
 from app.api.ratings import router as ratings_router
 from app.api.notifications import router as notifications_router
 from app.api.admin import router as admin_router
@@ -100,6 +101,7 @@ allow_origins=[
 
 
 app.include_router(auth_router)
+app.include_router(passwords_router)
 app.include_router(matching_router)
 app.include_router(services_router)
 app.include_router(service_requests_router)
