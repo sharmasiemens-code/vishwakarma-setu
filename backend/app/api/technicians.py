@@ -1,3 +1,4 @@
+from app.core.system_settings import get_system_settings, operational_query
 from app.core.technician_onboarding import require_technician_work_approval
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, field_validator
@@ -45,6 +46,7 @@ def update_my_availability(
     db: Session = Depends(get_db)
 ):
     # Only technicians can update technician availability
+    settings = get_system_settings(db)
     if current_user.get("role") != "TECHNICIAN":
         raise HTTPException(
             status_code=403,
@@ -77,11 +79,11 @@ def update_my_availability(
 
     if status == "ONLINE":
         fresh_location = db.execute(
-            text("""
+            operational_query(settings, """
                 SELECT technician_id
                 FROM technician_locations
                 WHERE technician_id = :technician_id
-                  AND last_seen_at >= now() - INTERVAL '10 minutes'
+                  AND last_seen_at >= now() - (:gps_timeout_minutes * INTERVAL '1 minute')
             """),
             {
                 "technician_id": technician_id
@@ -139,6 +141,7 @@ def update_availability(
     db: Session = Depends(get_db)
 ):
     # Only technicians can update availability
+    settings = get_system_settings(db)
     if current_user.get("role") != "TECHNICIAN":
         raise HTTPException(
             status_code=403,
@@ -178,11 +181,11 @@ def update_availability(
 
     if status == "ONLINE":
         fresh_location = db.execute(
-            text("""
+            operational_query(settings, """
                 SELECT technician_id
                 FROM technician_locations
                 WHERE technician_id = :technician_id
-                  AND last_seen_at >= now() - INTERVAL '10 minutes'
+                  AND last_seen_at >= now() - (:gps_timeout_minutes * INTERVAL '1 minute')
             """),
             {
                 "technician_id": technician_id

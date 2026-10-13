@@ -20,6 +20,7 @@ const pagePermissions = {
   admins: 'admin_users.read',
   roles: 'roles.read',
   audit: 'audit.read',
+  settings: 'settings.read',
   disputes: 'disputes.read',
 }
 

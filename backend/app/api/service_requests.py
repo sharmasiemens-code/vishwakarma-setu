@@ -1,3 +1,4 @@
+from app.core.system_settings import get_system_settings, operational_query
 from fastapi import APIRouter, Depends, HTTPException
 from uuid import UUID
 from pydantic import BaseModel, Field, ConfigDict, StrictFloat, field_validator
@@ -466,6 +467,7 @@ def get_service_request_summary(
     db: Session = Depends(get_db),
 ):
     # Only customers can access request summary
+    settings = get_system_settings(db)
     if current_user.get("role") != "CUSTOMER":
         raise HTTPException(
             status_code=403,
@@ -560,7 +562,7 @@ def get_service_request_summary(
         )
 
     # Find currently eligible technicians
-    matching_query = text("""
+    matching_query = operational_query(settings, """
         SELECT
             t.id AS technician_id,
             u.full_name,
@@ -598,7 +600,7 @@ def get_service_request_summary(
             sr.id = :request_id
 
             -- GPS must be fresh
-            AND tl.last_seen_at >= NOW() - INTERVAL '10 minutes'
+            AND tl.last_seen_at >= NOW() - (:gps_timeout_minutes * INTERVAL '1 minute')
 
             -- Technician must be within both request and technician radius
             AND ST_DWithin(
@@ -684,6 +686,7 @@ def get_service_request_matches(
     db: Session = Depends(get_db),
 ):
     # Only customers can view matches for their requests
+    settings = get_system_settings(db)
     if current_user.get("role") != "CUSTOMER":
         raise HTTPException(
             status_code=403,
@@ -731,7 +734,7 @@ def get_service_request_matches(
         )
 
     # Find eligible technicians
-    matching_query = text("""
+    matching_query = operational_query(settings, """
         SELECT
             t.id AS technician_id,
             u.full_name,
@@ -769,7 +772,7 @@ def get_service_request_matches(
             sr.id = :request_id
 
             -- Technician GPS must be fresh
-            AND tl.last_seen_at >= NOW() - INTERVAL '10 minutes'
+            AND tl.last_seen_at >= NOW() - (:gps_timeout_minutes * INTERVAL '1 minute')
 
             -- Technician must be within request radius
             AND ST_DWithin(

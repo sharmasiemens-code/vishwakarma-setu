@@ -1,3 +1,4 @@
+from app.core.system_settings import get_system_settings, operational_query
 from app.core.admin_audit import write_admin_audit
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import text
@@ -3353,8 +3354,9 @@ def get_admin_technician_locations(
     db: Session = Depends(get_db),
     admin: dict = Depends(require_permission("locations.read")),
 ):
+    settings = get_system_settings(db)
     rows = db.execute(
-        text("""
+        operational_query(settings, """
             SELECT
                 t.id AS technician_id,
                 u.full_name,
@@ -3373,7 +3375,7 @@ def get_admin_technician_locations(
 
                 CASE
                     WHEN tl.technician_id IS NULL THEN 'MISSING'
-                    WHEN tl.last_seen_at >= NOW() - INTERVAL '10 minutes'
+                    WHEN tl.last_seen_at >= NOW() - (:gps_timeout_minutes * INTERVAL '1 minute')
                         THEN 'LIVE'
                     ELSE 'STALE'
                 END AS gps_status,
@@ -3396,7 +3398,7 @@ def get_admin_technician_locations(
             ORDER BY
                 CASE
                     WHEN tl.technician_id IS NULL THEN 2
-                    WHEN tl.last_seen_at >= NOW() - INTERVAL '10 minutes'
+                    WHEN tl.last_seen_at >= NOW() - (:gps_timeout_minutes * INTERVAL '1 minute')
                         THEN 0
                     ELSE 1
                 END,
@@ -3419,6 +3421,7 @@ def get_admin_technician_locations(
 
     return {
         "status": "success",
+        "gps_timeout_minutes": settings["gps_timeout_minutes"],
         "summary": {
             "technicians": len(rows),
             "live": live_count,
@@ -3480,8 +3483,9 @@ def get_admin_availability(
     db: Session = Depends(get_db),
     admin: dict = Depends(require_permission("availability.read")),
 ):
+    settings = get_system_settings(db)
     rows = db.execute(
-        text("""
+        operational_query(settings, """
             SELECT
                 t.id AS technician_id,
                 u.full_name,
@@ -3496,7 +3500,7 @@ def get_admin_availability(
 
                 CASE
                     WHEN tl.technician_id IS NULL THEN 'MISSING'
-                    WHEN tl.last_seen_at >= NOW() - INTERVAL '10 minutes'
+                    WHEN tl.last_seen_at >= NOW() - (:gps_timeout_minutes * INTERVAL '1 minute')
                         THEN 'LIVE'
                     ELSE 'STALE'
                 END AS gps_status,
@@ -3602,6 +3606,7 @@ def get_admin_availability(
 
     return {
         "status": "success",
+        "gps_timeout_minutes": settings["gps_timeout_minutes"],
         "summary": {
             "technicians": len(technicians),
             "online": sum(
@@ -3757,11 +3762,12 @@ def get_admin_exceptions(
     db: Session = Depends(get_db),
     admin: dict = Depends(require_permission("exceptions.read")),
 ):
+    settings = get_system_settings(db)
     exceptions = []
 
-    # 1. OPEN requests with no job after 30 minutes
+    # 1. OPEN requests with no job after the configured warning period
     unmatched_rows = db.execute(
-        text("""
+        operational_query(settings, """
             SELECT
                 sr.id AS service_request_id,
                 sr.title,
@@ -3784,7 +3790,7 @@ def get_admin_exceptions(
             WHERE
                 sr.status = 'OPEN'
                 AND sr.created_at <
-                    NOW() - INTERVAL '30 minutes'
+                    NOW() - (:unmatched_request_minutes * INTERVAL '1 minute')
                 AND NOT EXISTS (
                     SELECT 1
                     FROM jobs j
@@ -3876,9 +3882,9 @@ def get_admin_exceptions(
             }
         )
 
-    # 3. Active jobs with no update for more than 2 hours
+    # 3. Active jobs with no update past the configured threshold
     stuck_job_rows = db.execute(
-        text("""
+        operational_query(settings, """
             SELECT
                 j.id AS job_id,
                 j.status AS job_status,
@@ -3913,7 +3919,7 @@ def get_admin_exceptions(
                     'IN_PROGRESS'
                 )
                 AND j.updated_at <
-                    NOW() - INTERVAL '2 hours'
+                    NOW() - (:stuck_active_job_hours * INTERVAL '1 hour')
             ORDER BY j.updated_at
         """)
     ).mappings().all()
@@ -3927,7 +3933,7 @@ def get_admin_exceptions(
                 "title": row["service_name"],
                 "description": (
                     "Active job has had no status update "
-                    "for more than 2 hours."
+                    f"for more than {settings['stuck_active_job_hours']} hours."
                 ),
                 "customer_name": row["customer_name"],
                 "customer_phone": None,
@@ -4100,8 +4106,8 @@ def get_admin_exceptions(
         },
         "exceptions": exceptions,
         "thresholds": {
-            "unmatched_request_minutes": 30,
-            "stuck_active_job_hours": 2,
+            "unmatched_request_minutes": settings["unmatched_request_minutes"],
+            "stuck_active_job_hours": settings["stuck_active_job_hours"],
         },
         "admin": {
             "user_id": str(admin.get("sub")),

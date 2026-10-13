@@ -1,3 +1,4 @@
+from app.core.system_settings import get_system_settings, operational_query
 from fastapi import APIRouter, Depends, HTTPException, Query
 from uuid import UUID
 from sqlalchemy import text
@@ -31,6 +32,7 @@ def find_matching_technicians(
     - are active and verified
     - are within the requested radius
     """
+    settings = get_system_settings(db)
 
     if current_user.get("role") != "CUSTOMER":
      raise HTTPException(
@@ -41,7 +43,7 @@ def find_matching_technicians(
 
     radius_meters = radius_km * 1000
 
-    query = text("""
+    query = operational_query(settings, """
         SELECT
             t.id AS technician_id,
             u.full_name,
@@ -102,8 +104,8 @@ def find_matching_technicians(
                       'IN_PROGRESS'
                   )
             )
-	    -- Technician GPS must be updated within the last 10 minutes
-AND tl.last_seen_at >= NOW() - INTERVAL '10 minutes'
+	    -- Technician GPS must be fresh within the configured timeout
+AND tl.last_seen_at >= NOW() - (:gps_timeout_minutes * INTERVAL '1 minute')
 
             -- Technician must have the required service skill
             AND EXISTS (

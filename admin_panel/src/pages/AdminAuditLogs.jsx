@@ -3,6 +3,7 @@ import { apiRequest } from '../api/api'
 import { getToken } from '../auth/auth'
 
 const actions = {
+  SYSTEM_SETTING_CHANGED: 'System setting changed',
   USER_PASSWORD_RESET: 'Customer/technician password reset',
   ADMIN_ROLE_ASSIGNED: 'Administrator role assigned',
   ADMIN_USER_CREATED: 'Administrator created',
@@ -158,6 +159,7 @@ export default function AdminAuditLogs() {
             <option value="USER">User</option>
             <option value="TECHNICIAN">Technician</option>
             <option value="TECHNICIAN_KYC">Technician KYC</option>
+            <option value="SYSTEM_SETTING">System setting</option>
           </select>
         </label>
         <label>

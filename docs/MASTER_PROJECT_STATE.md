@@ -291,4 +291,13 @@
 - Reset permission, identity confirmation, mandatory reason, atomic audit and stale-reset checks added.
 - PR_001_password_recovery.sql must follow existing migrations before restarting backend.
 - No password viewing or automated email/SMS recovery added.
-- Live migration and browser acceptance remain pending; see PASSWORD_RECOVERY.md.
+- User applied migration successfully, confirmed working locally, merged PR #1 and synced master.
+- Password recovery module complete; see PASSWORD_RECOVERY.md.
+
+### C32 System Settings implementation — 2026-10-13
+- Resumed the paused module after password recovery completion.
+- Admin System Settings page added with validation, reasons, conflict handling and audit filters.
+- GPS timeout connected consistently to matching, request matches, assignment, going ONLINE, presence worker and admin GPS status.
+- Unmatched-request and stuck-job warning thresholds connected to the Exceptions API.
+- C32_002_settings_runtime.sql activates permissions and preserves all existing audit actions and configured values.
+- Live migration and browser acceptance pending; see SYSTEM_SETTINGS.md.

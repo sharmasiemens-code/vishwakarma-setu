@@ -10,6 +10,7 @@ SETTING_DEFINITIONS = {
         "minimum": 5,
         "maximum": 60,
         "description": (
+            "GPS freshness for matching, assignment and going ONLINE. "
             "Set an ONLINE technician OFFLINE after stale GPS, "
             "only when there is no active job."
         ),
@@ -83,3 +84,18 @@ def get_system_settings(db: Session) -> dict[str, int]:
         raise RuntimeError("Operational system settings are incomplete")
 
     return values
+
+
+def operational_query(settings: dict[str, int], sql: str):
+    """Bind validated operational thresholds into one SQL statement.
+
+    The caller reads settings once per operation. Values are parameters,
+    never interpolated into SQL; unrelated caller parameters remain unbound.
+    """
+    query = text(sql)
+    values = {
+        key: validate_setting_value(key, value)
+        for key, value in settings.items()
+        if key in query.compile().params
+    }
+    return query.bindparams(**values)
