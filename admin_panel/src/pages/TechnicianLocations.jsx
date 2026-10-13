@@ -260,7 +260,7 @@ useEffect(() => {
 
       <p className="location-help-text">
         LIVE means the technician GPS was updated within the last
-        10 minutes. STALE locations are retained for operational
+        {' '}{data?.gps_timeout_minutes ?? 'configured'} minutes. STALE locations are retained for operational
         visibility but should not be treated as current.
       </p>
     </div>
