@@ -300,4 +300,13 @@
 - GPS timeout connected consistently to matching, request matches, assignment, going ONLINE, presence worker and admin GPS status.
 - Unmatched-request and stuck-job warning thresholds connected to the Exceptions API.
 - C32_002_settings_runtime.sql activates permissions and preserves all existing audit actions and configured values.
-- Live migration and browser acceptance pending; see SYSTEM_SETTINGS.md.
+- User applied activation migration, tested locally, merged PR #2 and synced master; System Settings complete.
+- User reports all seven end-to-end workflow checks and remaining reliability checks passed locally.
+
+### Technician Android phase 1 — 2026-10-13
+- Capacitor 8 Android build tooling, native foreground GPS and Android Back/resume integration added.
+- USB debug API configuration and HTTPS pilot validation added; backend allows packaged-app origins.
+- Generated Android project is reproducible from locked packages and android:prepare.
+- Mobile policy tests, lint/build and Android generation/plugin sync verified.
+- APK compilation, real-device acceptance, FCM push alerts, release signing and Customer Android packaging pending.
+- No VPS or public deployment performed; see TECHNICIAN_ANDROID.md.

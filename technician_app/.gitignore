@@ -22,3 +22,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Android project is generated reproducibly by android:prepare
+/android/
+/capacitor.config.json
+*.keystore
+*.jks

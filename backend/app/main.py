@@ -87,6 +87,8 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
 allow_origins=[
+    "https://localhost",  # Packaged Capacitor Android app
+    "http://localhost",   # Explicit USB debug builds
     "http://localhost:5173",
     "http://localhost:5174",
     "http://localhost:5175",

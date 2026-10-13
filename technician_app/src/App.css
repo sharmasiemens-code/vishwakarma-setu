@@ -1113,3 +1113,13 @@ button {
     justify-content: flex-start;
   }
 }
+
+/* Android safe areas and touch sizing. */
+body { padding-bottom: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)); }
+@media (max-width: 600px) {
+  .dashboard-header { padding-top: calc(16px + var(--safe-area-inset-top, env(safe-area-inset-top, 0px))); }
+  .dashboard-header-actions { flex-wrap: wrap; gap: 8px; }
+  button, input, select { min-height: 44px; }
+  input, select, textarea { font-size: 16px; }
+  .login-card { box-sizing: border-box; }
+}

@@ -1,3 +1,5 @@
+import { Capacitor } from '@capacitor/core'
+import { App as NativeApp } from '@capacitor/app'
 import { useEffect, useState } from 'react'
 import Login from './pages/Login'
 import ChangePassword from './pages/ChangePassword'
@@ -44,6 +46,33 @@ function App() {
       cancelled = true
     }
   }, [])
+
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return
+    let disposed = false
+    const listeners = []
+    async function listen() {
+      const back = await NativeApp.addListener('backButton', () => {
+        const dialog = document.querySelector('[role="dialog"]')
+        if (dialog) {
+          dialog.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+          return
+        }
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+        if (page !== 'dashboard') setPage('dashboard')
+        else if (window.confirm('Exit Vishwakarma Setu Technician?')) NativeApp.exitApp()
+      })
+      if (disposed) await back.remove()
+      else listeners.push(back)
+      const state = await NativeApp.addListener('appStateChange', ({ isActive }) => {
+        if (isActive) window.dispatchEvent(new Event('technician-app-resumed'))
+      })
+      if (disposed) await state.remove()
+      else listeners.push(state)
+    }
+    listen().catch(() => { /* Native registration can be retried on remount. */ })
+    return () => { disposed = true; listeners.forEach((listener) => listener.remove()) }
+  }, [page])
 
   function handleLogin(loggedInUser) {
     setUser(loggedInUser)

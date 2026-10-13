@@ -1,3 +1,4 @@
+import { getCurrentLocation, isAppActive } from '../mobile/location'
 import { useEffect, useRef, useState } from 'react'
 import { apiRequest } from '../api/client'
 import IncomingJobs from './IncomingJobs'
@@ -125,27 +126,14 @@ function Dashboard({ user, onLogout, onViewEarnings, onChangePassword }) {
   }, [])
 
   async function updateLocation() {
-    if (!navigator.geolocation) {
-      setLocationMessage('Geolocation is not supported by this browser.')
-      return false
-    }
+    if (!(await isAppActive())) return false
 
     setLocationLoading(true)
     setLocationMessage('Getting your current location...')
     setError('')
 
     try {
-      const position = await new Promise((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(
-          resolve,
-          reject,
-          {
-            enableHighAccuracy: true,
-            timeout: 15000,
-            maximumAge: 0,
-          },
-        )
-      })
+      const position = await getCurrentLocation()
 
       let batteryPercent = null
 
@@ -203,7 +191,11 @@ function Dashboard({ user, onLogout, onViewEarnings, onChangePassword }) {
       updateLocation()
     }, LOCATION_INTERVAL_MS)
 
+    function resumed() { updateLocation() }
+    window.addEventListener('technician-app-resumed', resumed)
+
     return () => {
+      window.removeEventListener('technician-app-resumed', resumed)
       window.clearTimeout(initialLocationTimer)
       window.clearInterval(locationIntervalId)
     }
