@@ -1,3 +1,4 @@
+from fastapi import Request as OnboardingRequest
 from datetime import datetime, timedelta, timezone
 import os
 from uuid import uuid4
@@ -106,7 +107,8 @@ security = HTTPBearer()
 
 
 def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security)
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    request: OnboardingRequest = None,
 ) -> dict:
     """
     Validate JWT access token and verify that the user account
@@ -126,8 +128,17 @@ def get_current_user(
 
     user_id = payload.get("sub")
     role = payload.get("role")
+    technician_id = payload.get("technician_id")
 
     if not user_id or not role:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid access token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # Customers must never carry a technician identity.
+    if role == "CUSTOMER" and technician_id is not None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid access token",
@@ -172,7 +183,94 @@ def get_current_user(
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
+        # Technician identity in the JWT must belong to the
+        # authenticated user represented by the "sub" claim.
+        if role == "TECHNICIAN":
+            technician = db.execute(
+                text("""
+                    SELECT id
+                    FROM technicians
+                    WHERE id = :technician_id
+                      AND user_id = :user_id
+                """),
+                {
+                    "technician_id": technician_id,
+                    "user_id": user_id,
+                }
+            ).mappings().first()
+
+            if not technician:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid access token",
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+
+        if role == "TECHNICIAN":
+            onboarding_application = db.execute(
+                text("""
+                    SELECT a.id, a.status,
+                           u.is_verified, u.phone_verified_at,
+                           t.kyc_status,
+                           k.verification_status,
+                           k.address_verified
+                    FROM public.technicians t
+                    JOIN public.users u ON u.id = t.user_id
+                    JOIN public.technician_applications a
+                        ON a.technician_id = t.id
+                    LEFT JOIN public.technician_kyc k
+                        ON k.technician_id = t.id
+                    WHERE t.id = CAST(:technician_id AS uuid)
+                      AND u.id = CAST(:user_id AS uuid)
+                """),
+                {
+                    "technician_id": technician_id,
+                    "user_id": user_id,
+                },
+            ).mappings().first()
+
+            if onboarding_application is not None:
+                ready = (
+                    onboarding_application["status"] == "APPROVED"
+                    and onboarding_application["is_verified"] is True
+                    and onboarding_application["phone_verified_at"] is not None
+                    and onboarding_application["kyc_status"] == "APPROVED"
+                    and onboarding_application["verification_status"] == "APPROVED"
+                    and onboarding_application["address_verified"] is True
+                )
+                status_access = (
+                    request is not None
+                    and request.method == "GET"
+                    and request.url.path.rstrip("/") in {
+                        "/auth/me",
+                        "/auth/technician/application",
+                    }
+                )
+                if not ready and not status_access:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail=(
+                            "Technician onboarding is pending. "
+                            "Application approval, manual phone verification "
+                            "and approved KYC are required."
+                        ),
+                    )
+
         return payload
 
     finally:
         db.close()
+def require_admin(
+    current_user: dict = Depends(get_current_user)
+) -> dict:
+    """
+    Allow access only to authenticated ADMIN users.
+    """
+
+    if current_user.get("role") != "ADMIN":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Administrator access required",
+        )
+
+    return current_user

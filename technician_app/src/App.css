@@ -1,0 +1,1115 @@
+/* =========================================================
+   VISHWAKARMA SETU
+   Technician Marketplace Theme
+   ========================================================= */
+
+:root {
+  --vs-navy: #103550;
+  --vs-blue: #17647a;
+  --vs-teal: #219c8d;
+  --vs-teal-dark: #16766f;
+  --vs-teal-soft: #edf9f7;
+
+  --vs-text: #102a43;
+  --vs-muted: #64748b;
+  --vs-border: #dce5ec;
+  --vs-bg: #f4f7fa;
+  --vs-card: #ffffff;
+
+  --vs-success: #15803d;
+  --vs-warning: #c2410c;
+  --vs-danger: #dc2626;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-width: 320px;
+  background: var(--vs-bg);
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+
+  font-family:
+    Inter,
+    "Segoe UI",
+    Roboto,
+    Helvetica,
+    Arial,
+    sans-serif;
+
+  background: var(--vs-bg);
+  color: var(--vs-text);
+}
+
+#root {
+  min-height: 100vh;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+/* =========================================================
+   LOGIN
+   ========================================================= */
+
+.login-page {
+  min-height: 100vh;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 24px;
+
+  background:
+    linear-gradient(
+      135deg,
+      #103550 0%,
+      #17647a 48%,
+      #2aa18f 100%
+    );
+}
+
+.login-card {
+  width: 100%;
+  max-width: 450px;
+
+  padding: 36px;
+
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 20px;
+
+  background: #ffffff;
+
+  box-shadow:
+    0 24px 60px rgba(5, 35, 55, 0.22);
+}
+
+.login-card h1 {
+  margin: 0 0 8px;
+
+  text-align: center;
+
+  color: var(--vs-navy);
+
+  font-size: 30px;
+  font-weight: 800;
+}
+
+.login-subtitle {
+  margin: 0 0 28px;
+
+  text-align: center;
+
+  color: var(--vs-muted);
+
+  font-size: 16px;
+}
+
+.login-card form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.login-card label {
+  margin-top: 4px;
+
+  color: #344054;
+
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.login-card input {
+  width: 100%;
+
+  padding: 12px 14px;
+
+  border: 1px solid #cfd8e3;
+  border-radius: 9px;
+
+  background: #ffffff;
+
+  color: var(--vs-text);
+
+  font-size: 15px;
+
+  outline: none;
+
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.login-card input:focus {
+  border-color: var(--vs-teal);
+
+  box-shadow:
+    0 0 0 3px rgba(33, 156, 141, 0.12);
+}
+
+.login-card button {
+  width: 100%;
+
+  margin-top: 12px;
+  padding: 13px 18px;
+
+  border: 0;
+  border-radius: 9px;
+
+  background:
+    linear-gradient(
+      135deg,
+      var(--vs-blue),
+      var(--vs-teal)
+    );
+
+  color: #ffffff;
+
+  cursor: pointer;
+
+  font-size: 15px;
+  font-weight: 700;
+
+  box-shadow:
+    0 5px 15px rgba(23, 108, 131, 0.20);
+}
+
+.login-card button:hover {
+  opacity: 0.94;
+}
+
+.login-card button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.login-error,
+.dashboard-error {
+  padding: 13px 14px;
+
+  border: 1px solid #fecaca;
+  border-radius: 9px;
+
+  background: #fef2f2;
+  color: #b42318;
+
+  font-size: 14px;
+}
+
+/* =========================================================
+   DASHBOARD
+   ========================================================= */
+
+.dashboard {
+  min-height: 100vh;
+
+  background:
+    linear-gradient(
+      180deg,
+      #f5f8fa 0%,
+      #f8fafc 100%
+    ) !important;
+}
+
+.dashboard-content {
+  width: 100%;
+  max-width: 1280px;
+
+  margin: 0 auto;
+
+  padding: 30px 24px 50px;
+}
+
+/* =========================================================
+   MARKETPLACE HEADER
+   ========================================================= */
+
+.dashboard-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 30px;
+
+  background:
+    linear-gradient(
+      110deg,
+      #103550 0%,
+      #17647a 48%,
+      #2aa18f 100%
+    ) !important;
+
+  border-bottom: 0 !important;
+
+  box-shadow:
+    0 5px 18px rgba(16, 53, 80, 0.16);
+}
+
+.marketplace-brand-name {
+  display: flex;
+  align-items: center;
+
+  gap: 8px;
+
+  margin-bottom: 5px;
+
+  color: #e8f1f5;
+
+  font-size: 14px;
+  font-weight: 800;
+
+  letter-spacing: 1.2px;
+}
+
+.brand-symbol {
+  color: #f5a623;
+
+  font-size: 19px;
+}
+
+.dashboard-header h1 {
+  color: #ffffff !important;
+}
+
+.dashboard-header p {
+  color: rgba(255, 255, 255, 0.86) !important;
+}
+
+/* Header buttons */
+
+.dashboard-header button {
+  border: 1px solid rgba(255, 255, 255, 0.34) !important;
+
+  background: rgba(255, 255, 255, 0.09) !important;
+
+  color: #ffffff !important;
+
+  transition:
+    background 0.15s ease,
+    transform 0.15s ease;
+}
+
+.dashboard-header button:hover {
+  transform: translateY(-1px);
+
+  background: rgba(255, 255, 255, 0.17) !important;
+}
+
+/* =========================================================
+   CARDS
+   ========================================================= */
+
+.welcome-card {
+  margin-bottom: 22px;
+
+  padding: 26px;
+
+  border: 1px solid var(--vs-border);
+  border-radius: 18px;
+
+  background: var(--vs-card);
+
+  box-shadow:
+    0 7px 24px rgba(16, 53, 80, 0.06);
+}
+
+.welcome-card h2 {
+  margin-top: 0;
+
+  color: var(--vs-text);
+
+  font-size: 22px;
+  font-weight: 750;
+}
+
+.welcome-card h3 {
+  color: #1e3a4c;
+}
+
+.welcome-card p {
+  color: var(--vs-muted);
+
+  line-height: 1.55;
+}
+
+/* =========================================================
+   BUTTONS
+   ========================================================= */
+
+button {
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease,
+    background 0.15s ease;
+}
+
+.primary-action {
+  padding: 11px 18px;
+
+  border: 1px solid var(--vs-blue);
+  border-radius: 9px;
+
+  background:
+    linear-gradient(
+      135deg,
+      var(--vs-blue),
+      var(--vs-teal)
+    );
+
+  color: #ffffff;
+
+  cursor: pointer;
+
+  font-weight: 700;
+
+  box-shadow:
+    0 5px 14px rgba(23, 108, 131, 0.20);
+}
+
+.primary-action:hover {
+  transform: translateY(-1px);
+
+  box-shadow:
+    0 8px 18px rgba(23, 108, 131, 0.25);
+}
+
+.primary-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+  transform: none;
+}
+
+/* =========================================================
+   DASHBOARD MESSAGES
+   ========================================================= */
+
+.dashboard-message {
+  max-width: 700px;
+
+  margin: 40px auto;
+
+  padding: 20px;
+
+  border: 1px solid var(--vs-border);
+  border-radius: 12px;
+
+  background: #ffffff;
+
+  color: var(--vs-muted);
+
+  text-align: center;
+
+  box-shadow:
+    0 6px 20px rgba(16, 53, 80, 0.06);
+}
+
+/* =========================================================
+   INCOMING JOBS
+   ========================================================= */
+
+.incoming-jobs,
+.incoming-jobs-section {
+  margin-bottom: 22px;
+}
+
+/* =========================================================
+   GENERAL STATUS HELPERS
+   ========================================================= */
+
+.status-online {
+  color: #15803d;
+}
+
+.status-offline {
+  color: #64748b;
+}
+
+.status-assigned {
+  color: #1d4ed8;
+}
+
+.status-accepted {
+  color: #6d28d9;
+}
+
+.status-in-progress {
+  color: #c2410c;
+}
+
+.status-completed {
+  color: #047857;
+}
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+
+@media (max-width: 900px) {
+  .dashboard-header {
+    padding: 20px !important;
+  }
+
+  .dashboard-content {
+    padding: 24px 18px 40px;
+  }
+}
+
+@media (max-width: 650px) {
+  .dashboard-header {
+    flex-direction: column;
+    align-items: stretch;
+
+    gap: 16px;
+
+    padding: 18px 16px !important;
+  }
+
+  .dashboard-header > div:last-child {
+    justify-content: flex-start;
+  }
+
+  .dashboard-header h1 {
+    font-size: 25px !important;
+  }
+
+  .dashboard-content {
+    padding: 18px 14px 34px;
+  }
+
+  .welcome-card {
+    padding: 20px;
+
+    border-radius: 15px;
+  }
+
+  .login-page {
+    padding: 15px;
+  }
+
+  .login-card {
+    padding: 26px 20px;
+  }
+}
+/* =========================================================
+   TECHNICIAN DASHBOARD - COMPACT DESKTOP LAYOUT V2
+   ========================================================= */
+
+/* Header: reduce vertical space */
+
+.marketplace-header {
+  min-height: 118px;
+
+  padding-top: 16px !important;
+  padding-bottom: 16px !important;
+}
+
+.marketplace-header .marketplace-brand-name {
+  margin-bottom: 2px;
+
+  font-size: 12px;
+}
+
+.marketplace-header h1 {
+  font-size: 26px !important;
+  line-height: 1.1;
+}
+
+.marketplace-header p {
+  margin-top: 3px !important;
+
+  font-size: 13px;
+}
+
+/* Reduce overall space below header */
+
+.dashboard-content {
+  padding-top: 18px !important;
+}
+
+/* Compact technician welcome */
+
+.dashboard-content > .welcome-card:first-of-type {
+  min-height: auto;
+
+  margin-bottom: 16px;
+
+  padding: 17px 22px !important;
+}
+
+.dashboard-content > .welcome-card:first-of-type h2 {
+  margin: 0 0 3px !important;
+
+  font-size: 21px;
+}
+
+.dashboard-content > .welcome-card:first-of-type > p {
+  margin-top: 3px !important;
+  margin-bottom: 4px !important;
+}
+
+/* Compact Online / Offline button area */
+
+.dashboard-content > .welcome-card:first-of-type > div {
+  margin-top: 10px !important;
+}
+
+.dashboard-content > .welcome-card:first-of-type button {
+  padding: 9px 18px;
+
+  border-radius: 8px;
+
+  font-size: 14px;
+}
+
+/* Overview cards */
+
+.technician-overview-grid {
+  gap: 12px !important;
+
+  margin-bottom: 16px !important;
+}
+
+.technician-overview-grid > div {
+  min-height: 100px;
+
+  padding: 14px 16px !important;
+
+  border-radius: 13px !important;
+
+  box-shadow:
+    0 4px 14px rgba(16, 53, 80, 0.05) !important;
+}
+
+/* Make overview labels smaller */
+
+.technician-overview-grid > div > div:first-child {
+  font-size: 11px !important;
+}
+
+/* Job Summary compact */
+
+.job-summary-badges {
+  gap: 9px !important;
+}
+
+.job-summary-badges > div {
+  padding: 10px 12px !important;
+
+  border-radius: 10px !important;
+}
+
+/* Reduce all dashboard card spacing */
+
+.dashboard-content > .welcome-card {
+  margin-bottom: 16px;
+}
+
+/* Desktop optimization */
+
+@media (min-width: 1000px) {
+  .dashboard-content {
+    max-width: 1280px;
+
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+}
+
+/* Mobile stays comfortable */
+
+@media (max-width: 650px) {
+  .marketplace-header {
+    min-height: auto;
+  }
+
+  .dashboard-content > .welcome-card:first-of-type {
+    padding: 18px !important;
+  }
+}
+
+/* Technician workspace */
+.technician-workspace .marketplace-header {
+  padding: 16px 24px !important;
+}
+.technician-workspace .marketplace-header h1 {
+  font-size: clamp(20px, 2.4vw, 27px) !important;
+  line-height: 1.2;
+}
+.technician-workspace .welcome-card {
+  border: 1px solid #dce6ee;
+  border-radius: 20px;
+  box-shadow: 0 8px 28px rgba(15, 45, 58, 0.05);
+}
+.technician-workspace-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
+.technician-workspace-nav a,
+.technician-workspace-nav button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 10px 16px;
+  border: 1px solid #cfdfdf;
+  border-radius: 12px;
+  background: #f1f8f7;
+  color: #215c54;
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+}
+.technician-workspace-nav a:hover,
+.technician-workspace-nav button:hover {
+  background: #e3f1ed;
+}
+.technician-active-job,
+.technician-incoming {
+  scroll-margin-top: 160px;
+}
+.technician-workspace .technician-active-job {
+  border-top: 4px solid #28796a;
+}
+.technician-job-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.technician-eyebrow {
+  display: block;
+  color: #287064;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1.3px;
+  margin-bottom: 6px;
+}
+.technician-job-heading h2 { margin: 0; }
+.technician-status-pill {
+  border-radius: 999px;
+  background: #e8f4ef;
+  color: #215c54;
+  padding: 8px 13px;
+  font-size: 12px;
+  font-weight: 800;
+}
+.technician-next-step {
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: #f0f7f6;
+  color: #28584f;
+  line-height: 1.6;
+  margin: 16px 0;
+}
+.technician-workspace input,
+.technician-workspace textarea,
+.technician-workspace select {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.technician-workspace button { min-height: 44px; }
+.technician-workspace a:focus-visible,
+.technician-workspace button:focus-visible {
+  outline: 3px solid #d99b43;
+  outline-offset: 3px;
+}
+@media (max-width: 640px) {
+  .technician-workspace .marketplace-header {
+    position: relative !important;
+    flex-wrap: wrap;
+    gap: 14px;
+    padding: 16px !important;
+  }
+  .technician-workspace .dashboard-content {
+    padding: 18px 14px 32px !important;
+  }
+  .technician-active-job,
+  .technician-incoming { scroll-margin-top: 18px; }
+  .technician-workspace-nav a,
+  .technician-workspace-nav button { flex: 1 1 120px; }
+}
+
+
+/* Dashboard visual refinement v2 */
+.technician-workspace .technician-welcome {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 24px;
+  row-gap: 6px;
+  align-items: center;
+}
+.technician-workspace .technician-welcome > h2 {
+  grid-column: 1;
+  margin: 0 !important;
+  font-size: 23px;
+}
+.technician-workspace .technician-welcome > p {
+  grid-column: 1;
+  margin: 0 !important;
+  line-height: 1.5;
+}
+.technician-workspace .technician-welcome > div {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  margin-top: 0 !important;
+  justify-content: flex-end !important;
+}
+.technician-workspace .technician-welcome > nav {
+  grid-column: 1 / -1;
+  margin: 12px 0 8px;
+}
+.technician-workspace .dashboard-content button {
+  font-family: inherit;
+  line-height: 1.4;
+  border-radius: 11px;
+  padding: 10px 16px;
+  cursor: pointer;
+}
+.technician-workspace .technician-welcome > div button,
+.technician-workspace .technician-incoming button:not(.primary-action) {
+  border: 1px solid #cbdedc;
+  background: #ffffff;
+  color: #234c49;
+  font-weight: 700;
+}
+.technician-workspace .dashboard-content button.primary-action {
+  background: #176b60;
+  border: 1px solid #176b60;
+  color: #ffffff;
+  font-weight: 700;
+}
+.technician-workspace .dashboard-content button.primary-action:hover {
+  background: #11564d;
+}
+.technician-workspace .dashboard-content button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.technician-workspace .technician-active-job {
+  padding: 24px;
+}
+.technician-workspace .technician-active-job > p:not(.technician-next-step) {
+  text-align: left;
+  font-size: 15px;
+  margin: 14px 0 0;
+}
+@media (max-width: 560px) {
+  .technician-workspace .technician-welcome {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 20px !important;
+  }
+  .technician-workspace .technician-welcome > div {
+    grid-column: 1;
+    grid-row: auto;
+    justify-content: flex-start !important;
+    margin: 8px 0 !important;
+  }
+  .technician-workspace .technician-active-job {
+    padding: 20px;
+  }
+}
+
+
+/* Technician compact job layout v3 */
+.technician-workspace .marketplace-header {
+  min-height: 0;
+  padding: 12px 24px !important;
+}
+.technician-workspace .marketplace-brand {
+  text-align: left;
+}
+.technician-workspace .marketplace-header h1 {
+  font-size: 23px !important;
+}
+.technician-workspace .marketplace-header p {
+  margin-bottom: 0;
+}
+.technician-workspace .dashboard-content > .technician-welcome {
+  padding: 14px 20px !important;
+  row-gap: 3px;
+}
+.technician-workspace .technician-welcome > h2 {
+  font-size: 20px;
+}
+.technician-workspace .technician-welcome > p {
+  font-size: 13px !important;
+  line-height: 1.4;
+}
+.technician-workspace .technician-welcome > nav {
+  margin: 8px 0 4px;
+  gap: 8px;
+}
+.technician-workspace .technician-active-job {
+  padding: 20px;
+  text-align: left;
+  scroll-margin-top: 115px;
+}
+.technician-workspace .technician-job-heading h2 {
+  margin: 0;
+  text-align: left;
+  font-size: 21px;
+}
+.technician-workspace .technician-next-step {
+  margin: 12px 0;
+  padding: 10px 14px;
+  font-size: 14px;
+  text-align: left;
+}
+.technician-workspace .technician-job-title {
+  margin: 12px 0;
+  text-align: left;
+  font-size: 20px;
+  overflow-wrap: anywhere;
+}
+.technician-job-facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px 20px;
+  padding: 14px 16px;
+  margin: 0 0 16px;
+  border: 1px solid #e1ebe8;
+  border-radius: 12px;
+  background: #f8fbfa;
+  text-align: left;
+}
+.technician-job-facts dt {
+  margin-bottom: 3px;
+  font-size: 12px;
+  color: #526775;
+}
+.technician-job-facts dd {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: #183d48;
+  overflow-wrap: anywhere;
+}
+.technician-job-address {
+  grid-column: 1 / -1;
+}
+.technician-workspace .technician-completion {
+  padding: 16px;
+  border: 1px solid #cfe3dd;
+  border-radius: 14px;
+  background: #ffffff;
+  text-align: left;
+}
+.technician-workspace .technician-completion h3 {
+  margin: 0 0 8px;
+  text-align: left;
+  font-size: 18px;
+}
+.technician-workspace .technician-completion p {
+  margin: 8px 0 12px;
+  font-size: 14px;
+  text-align: left;
+}
+.technician-workspace .technician-completion > button {
+  margin-right: 10px;
+  margin-bottom: 6px;
+}
+.technician-workspace .technician-completion button:not(.primary-action) {
+  border: 1px solid #cbdedc;
+  background: #f4f9f7;
+  color: #234c49;
+}
+.technician-workspace .technician-completion input {
+  border: 1px solid #a9c5bf;
+  border-radius: 8px;
+}
+@media (max-width: 650px) {
+  .technician-workspace .marketplace-header {
+    position: relative !important;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .technician-job-facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .technician-workspace .technician-active-job {
+    scroll-margin-top: 16px;
+    padding: 16px;
+  }
+  .technician-workspace .technician-overview-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+@media (max-width: 420px) {
+  .technician-job-facts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .technician-workspace .technician-completion > button {
+    width: 100%;
+    margin-right: 0;
+  }
+}
+
+
+/* Technician notification close controls */
+.technician-workspace .technician-notification-panel {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 100px);
+  max-height: calc(100dvh - 100px);
+  color: #183d48;
+  text-align: left;
+}
+.technician-notification-panel > div:first-child {
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+}
+.technician-notification-panel > div:first-child > strong {
+  flex: 1;
+}
+.technician-notification-panel .notification-close {
+  order: 2;
+  min-height: 44px;
+  padding: 8px 12px;
+  border-radius: 9px;
+  font-weight: 700;
+}
+.technician-workspace .technician-notification-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.technician-workspace .technician-notification-panel button {
+  color: #183d48 !important;
+  background: #ffffff !important;
+  border-color: #dce5ec !important;
+  transform: none !important;
+}
+.technician-workspace .technician-notification-panel button:hover {
+  background: #edf7f3 !important;
+}
+.technician-workspace .technician-notification-panel .notification-close {
+  background: #e8f4ef !important;
+  border: 1px solid #b7d6cb !important;
+}
+@media (max-width: 650px) {
+  .technician-workspace .technician-notification-panel {
+    top: 12px !important;
+    right: 12px !important;
+    width: calc(100vw - 24px) !important;
+    max-width: 400px !important;
+    max-height: calc(100vh - 24px);
+    max-height: calc(100dvh - 24px);
+  }
+}
+
+
+/* Shared marketplace header v1 */
+#root:has(.technician-workspace),
+#root:has(.customer-workspace) {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+}
+.dashboard.technician-workspace,
+.dashboard.customer-workspace {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+}
+.dashboard.technician-workspace > .marketplace-header,
+.dashboard.customer-workspace > .marketplace-header {
+  position: relative !important;
+  top: auto !important;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  width: 100%;
+  min-height: 0;
+  gap: 16px 24px;
+  padding: 18px 24px !important;
+  border-radius: 0;
+  background: linear-gradient(110deg, #103550 0%, #17647a 48%, #2aa18f 100%) !important;
+  box-shadow: 0 5px 18px rgba(16, 53, 80, 0.15);
+  text-align: left;
+}
+.dashboard > .marketplace-header .marketplace-brand {
+  min-width: 0;
+  text-align: left;
+}
+.dashboard > .marketplace-header .marketplace-brand-name {
+  margin: 0 0 5px;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 1.2px;
+  line-height: 1.4;
+}
+.dashboard > .marketplace-header .marketplace-brand h1 {
+  margin: 0 !important;
+  font-size: 29px !important;
+  font-weight: 800 !important;
+  line-height: 1.2 !important;
+  letter-spacing: -0.5px !important;
+}
+.dashboard > .marketplace-header .marketplace-brand p {
+  margin: 5px 0 0 !important;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+.dashboard > .marketplace-header > .workspace-header-actions,
+.dashboard > .marketplace-header > .dashboard-header-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.marketplace-header > .workspace-header-actions > button,
+.marketplace-header > .workspace-header-actions > div > button,
+.marketplace-header > .dashboard-header-actions > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: auto !important;
+  height: auto !important;
+  min-height: 44px;
+  padding: 11px 16px !important;
+  border: 1px solid rgba(255,255,255,0.34) !important;
+  border-radius: 10px !important;
+  background: rgba(255,255,255,0.09) !important;
+  color: #ffffff !important;
+  font-size: 14px !important;
+  font-weight: 700;
+  line-height: 1.4;
+  cursor: pointer;
+}
+@media (max-width: 650px) {
+  .dashboard.technician-workspace > .marketplace-header,
+  .dashboard.customer-workspace > .marketplace-header {
+    padding: 16px !important;
+    gap: 14px;
+  }
+  .dashboard > .marketplace-header .marketplace-brand h1 {
+    font-size: 23px !important;
+  }
+  .dashboard > .marketplace-header > .workspace-header-actions,
+  .dashboard > .marketplace-header > .dashboard-header-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}

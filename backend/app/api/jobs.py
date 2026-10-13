@@ -8,6 +8,8 @@ from enum import Enum
 from app.db.database import get_db
 from app.core.security import get_current_user
 from app.core.notifications import create_notification
+from app.api.job_start_pin import verify_job_start_pin
+from app.api.job_completion import verify_job_happy_code
 
 
 router = APIRouter(
@@ -62,7 +64,8 @@ def create_job(
         sr.id = :service_request_id
         AND c.user_id = :user_id
         AND u.is_active = TRUE
-        AND u.is_verified = TRUE;
+        AND u.is_verified = TRUE
+    FOR UPDATE OF sr;
 """)
 
     service_request = db.execute(
@@ -399,7 +402,8 @@ def cancel_job_by_customer(
             j.id = :job_id
             AND c.user_id = :user_id
             AND u.is_active = TRUE
-            AND u.is_verified = TRUE;
+            AND u.is_verified = TRUE
+        FOR UPDATE OF j;
     """)
 
     job = db.execute(
@@ -573,7 +577,8 @@ def respond_to_job(
             j.status,
             j.service_request_id
         FROM jobs j
-        WHERE j.id = :job_id;
+        WHERE j.id = :job_id
+        FOR UPDATE OF j;
     """)
 
     job = db.execute(
@@ -764,6 +769,24 @@ class JobStatus(str, Enum):
 class JobStatusUpdate(BaseModel):
     new_status: JobStatus
     remarks: str | None = Field(None, max_length=1000)
+    happy_code: str | None = Field(
+        default=None,
+        strict=True,
+        min_length=4,
+        max_length=4,
+        pattern=r"^[0-9]{4}$",
+        repr=False,
+        exclude=True,
+    )
+    start_pin: str | None = Field(
+        default=None,
+        strict=True,
+        min_length=4,
+        max_length=4,
+        pattern=r"^[0-9]{4}$",
+        repr=False,
+        exclude=True,
+    )
 
     @field_validator("new_status", mode="before")
     @classmethod
@@ -819,7 +842,8 @@ def update_job_status(
             j.service_request_id,
             j.customer_id
         FROM jobs j
-        WHERE j.id = :job_id;
+        WHERE j.id = :job_id
+        FOR UPDATE OF j;
     """)
 
     job = db.execute(
@@ -865,7 +889,33 @@ def update_job_status(
             ),
         )
 
-    remarks = request.remarks
+    if new_status == "IN_PROGRESS":
+        if request.start_pin is None:
+            raise HTTPException(
+                status_code=422,
+                detail="Customer Start PIN is required to start work",
+            )
+
+        # Authorization and transition checks have already passed,
+        # and the job row is locked. Consumption commits with work start.
+        verify_job_start_pin(db, job_id, request.start_pin)
+
+    if new_status == "COMPLETED":
+        if request.happy_code is None:
+            raise HTTPException(
+                status_code=422,
+                detail="Customer Happy Code is required to complete work",
+            )
+
+        verify_job_happy_code(db, job_id, request.happy_code)
+
+    # Never copy submitted confirmation codes into history or notifications.
+    if new_status == "IN_PROGRESS":
+        remarks = "Work started with customer Start PIN confirmation"
+    elif new_status == "COMPLETED":
+        remarks = "Work completed with customer Happy Code confirmation"
+    else:
+        remarks = request.remarks
 
     if not remarks:
         default_remarks = {
@@ -1273,6 +1323,28 @@ def get_customer_jobs(
         raise HTTPException(
             status_code=403,
             detail="Only customers can access customer jobs"
+        )
+
+    # H58.167: Customer can access only their own jobs
+    customer_owner_query = text("""
+        SELECT id
+        FROM customers
+        WHERE id = :customer_id
+          AND user_id = :user_id
+    """)
+
+    customer_owner = db.execute(
+        customer_owner_query,
+        {
+            "customer_id": str(customer_id),
+            "user_id": current_user.get("sub"),
+        },
+    ).scalar()
+
+    if customer_owner is None:
+        raise HTTPException(
+            status_code=403,
+            detail="You are not authorized to access these customer jobs"
         )
 
     user_id = current_user.get("sub")

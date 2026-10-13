@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from uuid import UUID
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict, StrictFloat, field_validator
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 from datetime import date, time
@@ -16,25 +16,78 @@ router = APIRouter(
 
 
 class ServiceRequestCreate(BaseModel):
-    service_id: UUID
+    model_config = ConfigDict(extra="forbid")
 
+    service_id: UUID
     title: str = Field(..., min_length=3, max_length=200)
     description: str | None = Field(None, max_length=2000)
-
     address_line1: str = Field(..., min_length=3, max_length=300)
     address_line2: str | None = Field(None, max_length=300)
     city: str = Field(..., min_length=2, max_length=100)
     state: str = Field(..., min_length=2, max_length=100)
     pincode: str | None = Field(None, min_length=3, max_length=10)
-
-    latitude: float = Field(..., ge=-90, le=90)
-    longitude: float = Field(..., ge=-180, le=180)
-
+    latitude: StrictFloat = Field(..., ge=-90, le=90)
+    longitude: StrictFloat = Field(..., ge=-180, le=180)
     preferred_date: date | None = None
     preferred_time_start: time | None = None
     preferred_time_end: time | None = None
 
+    @field_validator(
+        "preferred_time_start",
+        "preferred_time_end",
+        mode="before"
+    )
+    @classmethod
+    def validate_preferred_time(cls, value):
+        if value is None:
+            return None
 
+        if not isinstance(value, str):
+            raise ValueError(
+                "Preferred time must be provided as HH:MM or HH:MM:SS"
+            )
+
+        return value
+
+    @field_validator(
+        "title",
+        "address_line1",
+        "city",
+        "state",
+        mode="before"
+    )
+    @classmethod
+    def validate_required_text(cls, value):
+        if not isinstance(value, str):
+            raise ValueError("Value must be a string")
+
+        value = value.strip()
+
+        if not value:
+            raise ValueError("Value cannot be blank")
+
+        return value
+
+    @field_validator(
+        "description",
+        "address_line2",
+        "pincode",
+        mode="before"
+    )
+    @classmethod
+    def normalize_optional_text(cls, value):
+        if value is None:
+            return None
+
+        if not isinstance(value, str):
+            raise ValueError("Value must be a string")
+
+        value = value.strip()
+
+        if not value:
+            return None
+
+        return value
 @router.post("")
 def create_service_request(
     request: ServiceRequestCreate,
@@ -367,16 +420,20 @@ def get_my_service_request(
             ON sc.id = s.category_id
 
         LEFT JOIN LATERAL (
-            SELECT
-                j1.id,
-                j1.status,
-                j1.estimated_amount,
-                j1.final_amount
-            FROM jobs j1
-            WHERE j1.service_request_id = sr.id
-            ORDER BY j1.created_at DESC
-            LIMIT 1
-        ) j ON TRUE
+    SELECT
+        j1.id,
+        j1.status,
+        j1.estimated_amount,
+        j1.final_amount,
+        j1.assigned_at,
+        j1.accepted_at,
+        j1.started_at,
+        j1.completed_at
+    FROM jobs j1
+    WHERE j1.service_request_id = sr.id
+    ORDER BY j1.created_at DESC
+    LIMIT 1
+) j ON TRUE
 
         WHERE
             sr.id = :request_id
@@ -580,7 +637,20 @@ def get_service_request_summary(
                             AND tt.tool_id = st.tool_id
                     )
             )
-
+            -- Technician must not already have an active job
+            AND NOT EXISTS (
+                SELECT 1
+                FROM jobs active_job
+                WHERE
+                    active_job.technician_id = t.id
+                    AND active_job.status IN (
+                        'ASSIGNED',
+                        'ACCEPTED',
+                        'ON_THE_WAY',
+                        'ARRIVED',
+                        'IN_PROGRESS'
+                    )
+            )
         ORDER BY
             ST_Distance(
                 tl.location,
@@ -738,7 +808,20 @@ def get_service_request_matches(
                             AND tt.tool_id = st.tool_id
                     )
             )
-
+            -- Technician must not already have an active job
+            AND NOT EXISTS (
+                SELECT 1
+                FROM jobs active_job
+                WHERE
+                    active_job.technician_id = t.id
+                    AND active_job.status IN (
+                        'ASSIGNED',
+                        'ACCEPTED',
+                        'ON_THE_WAY',
+                        'ARRIVED',
+                        'IN_PROGRESS'
+                    )
+            )
         ORDER BY
             ST_Distance(
                 tl.location,
@@ -766,3 +849,94 @@ def get_service_request_matches(
             for match in matches
         ],
     }
+
+
+class ServiceRequestLocationUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    latitude: StrictFloat = Field(ge=-90, le=90, allow_inf_nan=False)
+    longitude: StrictFloat = Field(ge=-180, le=180, allow_inf_nan=False)
+
+
+@router.patch("/{request_id}/location")
+def update_service_request_location(
+    request_id: UUID,
+    payload: ServiceRequestLocationUpdate,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if current_user.get("role") != "CUSTOMER":
+        raise HTTPException(status_code=403, detail="Customer access required")
+
+    try:
+        row = db.execute(
+            text("""
+                SELECT sr.id, sr.status
+                FROM public.service_requests sr
+                JOIN public.customers c ON c.id = sr.customer_id
+                JOIN public.users u ON u.id = c.user_id
+                WHERE sr.id = :request_id
+                  AND u.id = CAST(:actor_id AS uuid)
+                  AND u.role = 'CUSTOMER'
+                  AND u.is_active = TRUE
+                  AND u.is_verified = TRUE
+                FOR UPDATE OF sr
+            """),
+            {"request_id": request_id, "actor_id": current_user["sub"]},
+        ).mappings().first()
+
+        if row is None:
+            raise HTTPException(status_code=404, detail="Service request not found")
+
+        if row["status"] != "OPEN":
+            raise HTTPException(
+                status_code=409,
+                detail="Only an OPEN request can have its location corrected",
+            )
+
+        previously_assigned = db.execute(
+            text("""
+                SELECT EXISTS (
+                    SELECT 1 FROM public.jobs
+                    WHERE service_request_id = :request_id
+                )
+            """),
+            {"request_id": request_id},
+        ).scalar_one()
+
+        if previously_assigned:
+            raise HTTPException(
+                status_code=409,
+                detail="Location cannot change after a request has been assigned",
+            )
+
+        updated = db.execute(
+            text("""
+                UPDATE public.service_requests
+                SET location = ST_SetSRID(
+                        ST_MakePoint(:longitude, :latitude), 4326
+                    )::geography,
+                    updated_at = clock_timestamp()
+                WHERE id = :request_id
+                RETURNING id,
+                          ST_Y(location::geometry) AS latitude,
+                          ST_X(location::geometry) AS longitude,
+                          updated_at
+            """),
+            {
+                "request_id": request_id,
+                "latitude": payload.latitude,
+                "longitude": payload.longitude,
+            },
+        ).mappings().one()
+
+        result = dict(updated)
+        db.commit()
+        return {
+            "status": "success",
+            "message": "Work location updated. Refresh technician matches.",
+            "service_request": result,
+        }
+
+    except Exception:
+        db.rollback()
+        raise

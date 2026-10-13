@@ -1,3 +1,4 @@
+from app.core.technician_onboarding import require_technician_work_approval
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import text
@@ -71,6 +72,9 @@ def update_my_availability(
             status_code=400,
             detail="Invalid availability status. Use ONLINE, BUSY, or OFFLINE."
         )
+    if status in {"ONLINE", "BUSY"}:
+        require_technician_work_approval(db, current_user)
+
     if status == "ONLINE":
         fresh_location = db.execute(
             text("""
@@ -169,6 +173,9 @@ def update_availability(
             status_code=400,
             detail="Invalid availability status. Use ONLINE, BUSY, or OFFLINE."
         )
+    if status in {"ONLINE", "BUSY"}:
+        require_technician_work_approval(db, current_user)
+
     if status == "ONLINE":
         fresh_location = db.execute(
             text("""
@@ -364,8 +371,17 @@ def update_location(
             detail="Technician profile not found in access token"
         )
 
+    # Normalize JWT technician_id to UUID
+    try:
+        logged_in_technician_id = UUID(str(logged_in_technician_id))
+    except (ValueError, TypeError):
+        raise HTTPException(
+            status_code=403,
+            detail="Invalid technician profile in access token"
+        )
+
     # Technician can update only their own location
-    if str(technician_id) != str(logged_in_technician_id):
+    if technician_id != logged_in_technician_id:
         raise HTTPException(
             status_code=403,
             detail="You are not authorized to update this technician's location"
@@ -467,6 +483,7 @@ def update_location(
         "battery_percent": data.battery_percent
     }
 
+
 @router.get("/{technician_id}/location")
 def get_location(
     technician_id: UUID,
@@ -486,6 +503,15 @@ def get_location(
         raise HTTPException(
             status_code=403,
             detail="Technician profile not found in access token"
+        )
+
+    # Normalize JWT technician_id to UUID before comparison
+    try:
+        logged_in_technician_id = UUID(str(logged_in_technician_id))
+    except (ValueError, TypeError):
+        raise HTTPException(
+            status_code=403,
+            detail="Invalid technician profile in access token"
         )
 
     # Technician can access only their own location
@@ -523,6 +549,7 @@ def get_location(
         "status": "success",
         "location": dict(result)
     }
+
 
 @router.get("/me/services")
 def get_my_technician_services(
@@ -1186,4 +1213,120 @@ def get_my_technician_dashboard(
             "active_job": dict(active_job) if active_job else None,
             "recent_jobs": [dict(job) for job in recent_jobs],
         },
+    }
+
+
+from fastapi import Response as WorkValueResponse
+
+
+@router.get("/me/earnings")
+def get_my_work_value(
+    response: WorkValueResponse,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if current_user.get("role") != "TECHNICIAN":
+        raise HTTPException(status_code=403, detail="Technician access required")
+
+    technician_id = current_user.get("technician_id")
+    if not technician_id:
+        raise HTTPException(status_code=403, detail="Technician profile required")
+
+    allowed = db.execute(
+        text("""
+            SELECT t.id
+            FROM public.technicians t
+            JOIN public.users u ON u.id = t.user_id
+            WHERE t.id = CAST(:technician_id AS uuid)
+              AND u.id = CAST(:actor_id AS uuid)
+              AND u.role = 'TECHNICIAN'
+              AND u.is_active = TRUE AND u.is_verified = TRUE
+        """),
+        {
+            "technician_id": technician_id,
+            "actor_id": current_user["sub"],
+        },
+    ).first()
+
+    if allowed is None:
+        raise HTTPException(status_code=403, detail="Active technician access required")
+
+    rows = db.execute(
+        text("""
+            WITH completed AS (
+                SELECT
+                    completed_at AT TIME ZONE 'Asia/Kolkata' AS local_completed_at,
+                    CASE
+                        WHEN COALESCE(final_amount, estimated_amount) >= 0
+                         AND COALESCE(final_amount, estimated_amount) < 10000000000
+                        THEN COALESCE(final_amount, estimated_amount)
+                        ELSE NULL
+                    END AS amount,
+                    final_amount IS NULL AS uses_estimate
+                FROM public.jobs
+                WHERE technician_id = CAST(:technician_id AS uuid)
+                  AND status = 'COMPLETED'
+            ),
+            totals AS (
+                SELECT count(*) AS completed_jobs,
+                       COALESCE(sum(amount), 0) AS lifetime_value,
+                       count(*) FILTER (WHERE amount IS NULL) AS missing_amount_jobs,
+                       count(*) FILTER (
+                           WHERE uses_estimate AND amount IS NOT NULL
+                       ) AS estimated_value_jobs,
+                       count(*) FILTER (
+                           WHERE local_completed_at IS NULL
+                       ) AS undated_jobs
+                FROM completed
+            ),
+            months AS (
+                SELECT generate_series(
+                    date_trunc('month', CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')
+                        - INTERVAL '11 months',
+                    date_trunc('month', CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata'),
+                    INTERVAL '1 month'
+                ) AS month_start
+            ),
+            monthly AS (
+                SELECT date_trunc('month', local_completed_at) AS month_start,
+                       COALESCE(sum(amount), 0) AS work_value,
+                       count(*) AS job_count
+                FROM completed
+                WHERE local_completed_at IS NOT NULL
+                GROUP BY 1
+            )
+            SELECT to_char(m.month_start, 'YYYY-MM') AS month,
+                   COALESCE(v.work_value, 0) AS work_value,
+                   COALESCE(v.job_count, 0) AS job_count,
+                   t.*
+            FROM months m
+            LEFT JOIN monthly v ON v.month_start = m.month_start
+            CROSS JOIN totals t
+            ORDER BY m.month_start
+        """),
+        {"technician_id": technician_id},
+    ).mappings().all()
+
+    totals = rows[0]
+    response.headers["Cache-Control"] = "no-store"
+    return {
+        "status": "success",
+        "currency": "INR",
+        "timezone": "Asia/Kolkata",
+        "payment_tracking": False,
+        "summary": {
+            "completed_jobs": totals["completed_jobs"],
+            "lifetime_work_value": format(totals["lifetime_value"], ".2f"),
+            "estimated_value_jobs": totals["estimated_value_jobs"],
+            "missing_amount_jobs": totals["missing_amount_jobs"],
+            "undated_jobs": totals["undated_jobs"],
+        },
+        "monthly": [
+            {
+                "month": row["month"],
+                "work_value": format(row["work_value"], ".2f"),
+                "completed_jobs": row["job_count"],
+            }
+            for row in rows
+        ],
     }

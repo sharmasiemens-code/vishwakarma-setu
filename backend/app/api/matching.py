@@ -89,6 +89,19 @@ def find_matching_technicians(
             AND k.address_verified = TRUE
 
             AND t.availability_status = 'ONLINE'
+
+            AND NOT EXISTS (
+                SELECT 1
+                FROM jobs active_job
+                WHERE active_job.technician_id = t.id
+                  AND active_job.status IN (
+                      'ASSIGNED',
+                      'ACCEPTED',
+                      'ON_THE_WAY',
+                      'ARRIVED',
+                      'IN_PROGRESS'
+                  )
+            )
 	    -- Technician GPS must be updated within the last 10 minutes
 AND tl.last_seen_at >= NOW() - INTERVAL '10 minutes'
 
