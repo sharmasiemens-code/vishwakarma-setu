@@ -1,9 +1,7 @@
+from app.core.system_settings import get_system_settings
 from sqlalchemy import text
 
 from app.db.database import SessionLocal
-
-
-GPS_TIMEOUT_MINUTES = 10
 
 
 def synchronize_technician_presence():
@@ -11,14 +9,15 @@ def synchronize_technician_presence():
     Synchronize technician availability with GPS heartbeat.
 
     Rule:
-    - ONLINE + GPS stale > 10 minutes + no active job -> OFFLINE
-    - ONLINE + GPS stale > 10 minutes + active job -> unchanged
+    - ONLINE + GPS older than the configured timeout + no active job -> OFFLINE
+    - ONLINE + GPS older than the configured timeout + active job -> unchanged
     - Fresh GPS -> unchanged
     """
 
     db = SessionLocal()
 
     try:
+        settings = get_system_settings(db)
         result = db.execute(
             text("""
                 UPDATE technicians t
@@ -52,7 +51,7 @@ def synchronize_technician_presence():
                 RETURNING t.id
             """),
             {
-                "timeout_minutes": GPS_TIMEOUT_MINUTES
+                "timeout_minutes": settings["gps_timeout_minutes"]
             }
         )
 
