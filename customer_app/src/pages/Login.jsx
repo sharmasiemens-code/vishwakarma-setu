@@ -212,7 +212,8 @@ function Login({ onLogin, onSignup }) {
               : 'Sign in to Customer Portal'}
           </button>
 
-        </form>
+        <p>Forgot your password? Contact the administrator for a manual reset.</p>
+          </form>
 
         <div style={{ marginTop: 20, textAlign: 'center' }}>
           <p style={{ color: '#64748b', fontSize: 14 }}>
