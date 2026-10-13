@@ -1,7 +1,12 @@
+import { Capacitor } from '@capacitor/core'
+
 const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
+  import.meta.env.VITE_API_BASE_URL || (Capacitor.isNativePlatform() ? 'https://invalid.local' : 'http://127.0.0.1:8000')
 
 async function apiRequest(path, options = {}) {
+  if (Capacitor.isNativePlatform() && !import.meta.env.VITE_API_BASE_URL) {
+    throw new Error('The Android API address is missing. Rebuild using android:prepare.')
+  }
   const token = localStorage.getItem('technician_access_token')
 
   const response = await fetch(`${API_BASE_URL}${path}`, {
