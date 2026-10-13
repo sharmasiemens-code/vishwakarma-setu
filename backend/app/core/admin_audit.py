@@ -16,6 +16,10 @@ ADMIN_ROLES = {
 }
 
 EVENT_RULES = {
+    "USER_PASSWORD_RESET": {
+        "target_type": "USER",
+        "fields": {"password_version": int},
+    },
     "TECHNICIAN_PHONE_VERIFIED": {
         "target_type": "TECHNICIAN_APPLICATION",
         "fields": {
