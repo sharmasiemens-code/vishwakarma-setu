@@ -8,7 +8,7 @@ import CompleteWork from '../components/CompleteWork'
 const LOCATION_INTERVAL_MS = 5 * 60 * 1000
 const NOTIFICATION_INTERVAL_MS = 15 * 1000
 
-function Dashboard({ user, onLogout, onViewEarnings }) {
+function Dashboard({ user, onLogout, onViewEarnings, onChangePassword }) {
   const [dashboard, setDashboard] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -560,6 +560,8 @@ function Dashboard({ user, onLogout, onViewEarnings }) {
               </div>
             )}
           </div>
+
+          <button type="button" onClick={onChangePassword}>Change Password</button>
 
           <button
             type="button"
