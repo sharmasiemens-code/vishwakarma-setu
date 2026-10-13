@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import Login from './pages/Login'
+import ChangePassword from './pages/ChangePassword'
 import Signup from './pages/Signup'
 import Dashboard from './pages/Dashboard'
 import CreateServiceRequest from './pages/CreateServiceRequest'
@@ -143,6 +144,10 @@ function App() {
     )
   }
 
+  if (currentPage === 'change-password') {
+    return <ChangePassword onBack={() => setCurrentPage('dashboard')} onChanged={handleLogout} />
+  }
+
   if (currentPage === 'create-request') {
     return (
       <CreateServiceRequest
@@ -178,6 +183,7 @@ function App() {
   return (
     <Dashboard
       user={user}
+        onChangePassword={() => setCurrentPage('change-password')}
       onLogout={handleLogout}
       onCreateRequest={handleCreateRequest}
       onViewRequests={handleViewRequests}
