@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { apiRequest } from '../api/client'
 
-export default function OnboardingGate({ children, onLogout }) {
+export default function OnboardingGate({ children, onLogout, onChangePassword }) {
   const [application, setApplication] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -95,6 +95,7 @@ export default function OnboardingGate({ children, onLogout }) {
         >
           Refresh Application Status
         </button>
+        <button type="button" onClick={onChangePassword}>Change Password</button>
         <button
           type="button"
           onClick={onLogout}
