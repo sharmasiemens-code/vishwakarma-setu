@@ -1,3 +1,4 @@
+from app.core.system_settings import get_system_settings, operational_query
 from fastapi import APIRouter, Depends, HTTPException
 from uuid import UUID
 from pydantic import BaseModel, Field, field_validator
@@ -35,6 +36,7 @@ def create_job(
     db: Session = Depends(get_db),
 ):
     # Only customers can assign a technician
+    settings = get_system_settings(db)
     if current_user.get("role") != "CUSTOMER":
         raise HTTPException(
             status_code=403,
@@ -134,7 +136,7 @@ def create_job(
 
     # 6. Verify technician matches requested service
     # 6. Technician GPS must be fresh and within the request search radius
-    location_query = text("""
+    location_query = operational_query(settings, """
         SELECT
             ST_Distance(
                 tl.location,
@@ -149,7 +151,7 @@ def create_job(
             tl.technician_id = :technician_id
             AND tl.location IS NOT NULL
             AND sr.location IS NOT NULL
-            AND tl.last_seen_at >= NOW() - INTERVAL '10 minutes'
+            AND tl.last_seen_at >= NOW() - (:gps_timeout_minutes * INTERVAL '1 minute')
             AND ST_DWithin(
                 tl.location,
                 sr.location,
