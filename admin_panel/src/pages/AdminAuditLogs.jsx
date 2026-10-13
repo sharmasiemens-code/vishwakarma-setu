@@ -3,6 +3,7 @@ import { apiRequest } from '../api/api'
 import { getToken } from '../auth/auth'
 
 const actions = {
+  USER_PASSWORD_RESET: 'Customer/technician password reset',
   ADMIN_ROLE_ASSIGNED: 'Administrator role assigned',
   ADMIN_USER_CREATED: 'Administrator created',
   ADMIN_USER_STATUS_CHANGED: 'Administrator account status changed',
