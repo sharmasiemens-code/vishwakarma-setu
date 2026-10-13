@@ -8,6 +8,7 @@ import {
 import AdminSidebar from './AdminSidebar'
 import Customers from './Customers'
 import PasswordRecovery from './PasswordRecovery'
+import SystemSettings from './SystemSettings'
 import TechnicianApplications from './TechnicianApplications'
 import Technicians from './Technicians'
 import TechnicianDetail from './TechnicianDetail'
@@ -340,6 +341,10 @@ function handleBackToKyc() {
           />
         </main>
       )
+    }
+
+    if (activePage === 'settings') {
+      return <SystemSettings user={user} />
     }
 
     if (activePage === 'password-recovery') {
