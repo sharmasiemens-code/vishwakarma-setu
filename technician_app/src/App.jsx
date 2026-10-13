@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import Login from './pages/Login'
+import ChangePassword from './pages/ChangePassword'
 import Signup from './pages/Signup'
 import Dashboard from './pages/Dashboard'
 import Earnings from './pages/Earnings'
@@ -80,18 +81,23 @@ function App() {
     )
   }
 
+  if (page === 'change-password') {
+    return <ChangePassword onBack={() => setPage('dashboard')} onChanged={handleLogout} />
+  }
+
   if (page === 'earnings') {
     return (
-      <OnboardingGate onLogout={handleLogout}>
+      <OnboardingGate onLogout={handleLogout} onChangePassword={() => setPage('change-password')}>
         <Earnings onBack={() => setPage('dashboard')} />
       </OnboardingGate>
     )
   }
 
   return (
-    <OnboardingGate onLogout={handleLogout}>
+    <OnboardingGate onLogout={handleLogout} onChangePassword={() => setPage('change-password')}>
       <Dashboard
         user={user}
+        onChangePassword={() => setPage('change-password')}
         onLogout={handleLogout}
         onViewEarnings={() => setPage('earnings')}
       />
