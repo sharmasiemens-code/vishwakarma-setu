@@ -48,6 +48,7 @@ const navigationGroups = [
   {
     label: 'PLATFORM',
     items: [
+      { id: 'password-recovery', icon: '🔑', label: 'Password Recovery' },
       { id: 'admins', icon: '♙', label: 'Admin Users' },
       { id: 'roles', icon: '🔐', label: 'Roles & Permissions' },
       { id: 'audit', icon: '☷', label: 'Audit Logs' },

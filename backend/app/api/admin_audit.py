@@ -13,6 +13,7 @@ from app.db.database import get_db
 router = APIRouter(prefix="/admin", tags=["Admin Audit"])
 
 AuditAction = Literal[
+    "USER_PASSWORD_RESET",
     "ADMIN_ROLE_ASSIGNED",
     "ADMIN_USER_CREATED",
     "ADMIN_USER_STATUS_CHANGED",

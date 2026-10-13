@@ -7,6 +7,7 @@ import {
 } from '../auth/permissions'
 import AdminSidebar from './AdminSidebar'
 import Customers from './Customers'
+import PasswordRecovery from './PasswordRecovery'
 import TechnicianApplications from './TechnicianApplications'
 import Technicians from './Technicians'
 import TechnicianDetail from './TechnicianDetail'
@@ -339,6 +340,10 @@ function handleBackToKyc() {
           />
         </main>
       )
+    }
+
+    if (activePage === 'password-recovery') {
+      return <PasswordRecovery />
     }
 
     if (activePage === 'customers') {

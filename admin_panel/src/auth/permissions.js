@@ -3,6 +3,7 @@ import { hasPermission } from './auth'
 const pagePermissions = {
   dashboard: 'dashboard.read',
   customers: 'customers.read',
+  'password-recovery': 'passwords.reset',
   technicians: 'technicians.read',
   'technician-applications': 'technician_applications.read',
   kyc: 'kyc.read',

@@ -110,6 +110,7 @@ async function resolveCustomerId(requestData) {
 function Dashboard({
   user,
   onLogout,
+  onChangePassword,
   onCreateRequest,
   onViewRequests,
   onSelectRequest,
@@ -456,6 +457,8 @@ function Dashboard({
               </span>
             )}
           </button>
+
+          <button type="button" onClick={onChangePassword}>Change Password</button>
 
           <button
             type="button"

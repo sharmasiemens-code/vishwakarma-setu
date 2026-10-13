@@ -30,7 +30,9 @@ export async function apiRequest(
 
   if (!response.ok) {
     const message =
-      data?.detail ||
+      (Array.isArray(data?.detail)
+        ? data.detail.map((item) => item.msg || 'Invalid input').join('; ')
+        : data?.detail) ||
       data?.message ||
       `Request failed with status ${response.status}`
 
