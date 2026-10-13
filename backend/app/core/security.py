@@ -154,7 +154,8 @@ def get_current_user(
                     id,
                     role,
                     is_active,
-                    is_verified
+                    is_verified,
+                    password_version
                 FROM users
                 WHERE id = :user_id
             """),
@@ -167,6 +168,14 @@ def get_current_user(
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="User account not found",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+        token_version = payload.get("password_version", 0)
+        if type(token_version) is not int or token_version != user["password_version"]:
+            raise HTTPException(
+                status_code=401,
+                detail="Password changed. Please log in again",
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
@@ -246,7 +255,12 @@ def get_current_user(
                         "/auth/technician/application",
                     }
                 )
-                if not ready and not status_access:
+                password_access = (
+                    request is not None
+                    and request.method == "POST"
+                    and request.url.path.rstrip("/") == "/auth/change-password"
+                )
+                if not ready and not (status_access or password_access):
                     raise HTTPException(
                         status_code=status.HTTP_403_FORBIDDEN,
                         detail=(
