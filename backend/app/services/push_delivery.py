@@ -100,10 +100,10 @@ def deliver_one(send=send_to_firebase):
                     db.execute(text('UPDATE public.push_devices SET active = FALSE WHERE id = :id'),
                                {'id': row['device_id']})
         db.execute(text('''
-            UPDATE public.push_outbox SET state = :state, attempts = :attempts,
+            UPDATE public.push_outbox SET state = CAST(:state AS VARCHAR(20)), attempts = :attempts,
                 last_error_code = :code,
                 next_attempt_at = now() + (:delay * INTERVAL '1 second'),
-                completed_at = CASE WHEN :state = 'PENDING' THEN NULL ELSE now() END
+                completed_at = CASE WHEN CAST(:state AS VARCHAR(20)) = 'PENDING' THEN NULL ELSE now() END
             WHERE id = :id
         '''), {'id': row['id'], 'state': state, 'attempts': attempts, 'code': code,
                'delay': min(300, 5 * (2 ** attempts))})
