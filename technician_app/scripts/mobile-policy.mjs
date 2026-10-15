@@ -19,6 +19,7 @@ export function makeCapacitorConfig(allowHttp = false) {
     appId: 'in.vishwakarmasetu.technician',
     appName: 'Vishwakarma Setu Technician',
     webDir: 'dist',
+    plugins: { PushNotifications: { presentationOptions: ['sound', 'banner', 'list'] } },
     server: { androidScheme: allowHttp ? 'http' : 'https' },
     android: { allowMixedContent: false },
   }
