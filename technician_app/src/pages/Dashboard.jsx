@@ -1,3 +1,4 @@
+import TechnicianRatings from '../components/TechnicianRatings'
 import PushAlerts from '../components/PushAlerts'
 import { getCurrentLocation, isAppActive } from '../mobile/location'
 import { useEffect, useRef, useState } from 'react'
@@ -117,6 +118,7 @@ function Dashboard({ user, onLogout, onViewEarnings, onChangePassword }) {
     }, 0)
 
     const notificationIntervalId = window.setInterval(() => {
+      if (document.visibilityState === 'visible') loadDashboard()
       loadNotifications(true)
     }, NOTIFICATION_INTERVAL_MS)
 
@@ -986,6 +988,8 @@ function Dashboard({ user, onLogout, onViewEarnings, onChangePassword }) {
 
 
 
+
+      <TechnicianRatings technicianId={profile.technician_id || user?.technician_id} />
 
         <section className="welcome-card">
           <h2>Recent Jobs</h2>
