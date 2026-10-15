@@ -1,3 +1,4 @@
+import PushAlerts from '../components/PushAlerts'
 import { getCurrentLocation, isAppActive } from '../mobile/location'
 import { useEffect, useRef, useState } from 'react'
 import { apiRequest } from '../api/client'
@@ -568,6 +569,8 @@ function Dashboard({ user, onLogout, onViewEarnings, onChangePassword }) {
           </button>
         </div>
       </header>
+
+      <PushAlerts />
 
       <main
         className="dashboard-content"
