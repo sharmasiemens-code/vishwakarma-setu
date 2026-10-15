@@ -57,3 +57,7 @@ backups/
 
 # Private customer work photographs
 /backend/private_storage/
+
+# Backend Firebase private credentials (client configuration is distinct)
+*firebase-adminsdk*.json
+*service-account*.json
