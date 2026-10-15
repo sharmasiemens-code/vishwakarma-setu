@@ -25,3 +25,7 @@ test('native app packages local assets and keeps mixed content disabled', () => 
   assert.equal(secure.server.url, undefined)
   assert.equal(makeCapacitorConfig(true).server.androidScheme, 'http')
 })
+
+test('foreground phone alert presentation is enabled in native config', () => {
+  assert.deepEqual(makeCapacitorConfig().plugins.PushNotifications.presentationOptions, ['sound', 'banner', 'list'])
+})
