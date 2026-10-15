@@ -1,5 +1,10 @@
 # Registration foundation: identifier login
 import re
+from datetime import date
+
+from app.core.personal_details import optional_email, optional_birth_date
+
+from app.core.safe_routes import SafeRoute
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field, StrictStr, model_validator
@@ -14,7 +19,7 @@ from app.core.security import (
 from app.db.database import get_db
 
 
-router = APIRouter(prefix="/auth", tags=["Authentication"])
+router = APIRouter(prefix="/auth", tags=["Authentication"], route_class=SafeRoute)
 
 
 def normalize_login_identifier(value: str) -> tuple[str, str]:
@@ -185,6 +190,11 @@ class CustomerRegistration(BaseModel):
 
     full_name: StrictStr = Field(min_length=2, max_length=150)
     phone: StrictStr = Field(min_length=10, max_length=30)
+    email: StrictStr | None = Field(default=None, max_length=254)
+    date_of_birth: date | None = None
+
+    _email = registration_validator("email", mode="before")(optional_email)
+    _birth_date = registration_validator("date_of_birth", mode="before")(optional_birth_date)
     password: StrictStr = Field(
         min_length=8,
         max_length=72,
@@ -234,6 +244,10 @@ def register_customer(
     db: Session = Depends(get_db),
 ):
     try:
+        if data.email:
+            db.execute(text("SELECT pg_advisory_xact_lock(hashtextextended(:email, 0))"), {"email": data.email})
+            if db.execute(text("SELECT id FROM public.users WHERE lower(email) = :email LIMIT 1"), {"email": data.email}).first():
+                raise HTTPException(409, "This email is already registered. Please sign in.")
         existing = db.execute(
             text("""
                 SELECT id
@@ -260,13 +274,14 @@ def register_customer(
                     phone_verified_at, phone_verified_by
                 )
                 VALUES (
-                    :full_name, NULL, :phone, :password_hash,
+                    :full_name, :email, :phone, :password_hash,
                     'CUSTOMER', TRUE, TRUE, NULL, NULL
                 )
                 RETURNING id, full_name, phone
             """),
             {
                 "full_name": data.full_name,
+                "email": data.email,
                 "phone": data.phone,
                 "password_hash": password_hash,
             },
@@ -276,11 +291,11 @@ def register_customer(
         # Actual phone verification remains NULL in the dedicated columns.
         customer_id = db.execute(
             text("""
-                INSERT INTO public.customers (user_id)
-                VALUES (:user_id)
+                INSERT INTO public.customers (user_id, date_of_birth)
+                VALUES (:user_id, :date_of_birth)
                 RETURNING id
             """),
-            {"user_id": user["id"]},
+            {"user_id": user["id"], "date_of_birth": data.date_of_birth},
         ).scalar_one()
 
         access_token = create_access_token(
@@ -300,7 +315,7 @@ def register_customer(
                 "user_id": str(user["id"]),
                 "customer_id": str(customer_id),
                 "full_name": user["full_name"],
-                "email": None,
+                "email": data.email,
                 "phone": user["phone"],
                 "role": "CUSTOMER",
                 "is_verified": True,
@@ -323,11 +338,11 @@ def register_customer(
         )
         if constraint in {
             "users_phone_key",
-            "users_registration_mobile_unique",
+            "users_registration_mobile_unique", "users_email_key",
         }:
             raise HTTPException(
                 status_code=409,
-                detail="This mobile number is already registered. Please sign in.",
+                detail="This mobile number or email is already registered. Please sign in.",
             ) from None
         raise
 
@@ -345,7 +360,8 @@ from typing import Literal as RegistrationLiteral
 from uuid import UUID as RegistrationUUID
 
 
-class TechnicianRegistration(CustomerRegistration):
+class TechnicianDetails(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     email: StrictStr = Field(min_length=5, max_length=254)
     date_of_birth: RegistrationDate
     gender: RegistrationLiteral["MALE", "FEMALE", "OTHER"]
@@ -448,6 +464,17 @@ class TechnicianRegistration(CustomerRegistration):
         return self
 
 
+class TechnicianRegistration(CustomerRegistration, TechnicianDetails):
+    # Preserve the original all-at-once endpoint's required verification fields.
+    email: StrictStr = Field(min_length=5, max_length=254)
+    date_of_birth: RegistrationDate = Field(...)
+
+    @registration_validator("date_of_birth", mode="before")
+    @classmethod
+    def _birth_date(cls, value):
+        return TechnicianDetails.validate_birth_date(value)
+
+
 @router.post("/register/technician", status_code=201)
 def register_technician(
     data: TechnicianRegistration,
@@ -476,74 +503,7 @@ def register_technician(
                 detail="This mobile number or email is already registered. Please sign in.",
             )
 
-        choices = {
-            "services": [str(value) for value in data.service_ids],
-            "skills": [str(value) for value in data.skill_ids],
-            "tools": [str(value) for value in data.tool_ids],
-        }
-
-        services = db.execute(
-            text("""
-                SELECT s.id
-                FROM public.services s
-                JOIN public.service_categories c ON c.id = s.category_id
-                WHERE s.id = ANY(CAST(:ids AS uuid[]))
-                  AND s.is_active = TRUE AND c.is_active = TRUE
-            """),
-            {"ids": choices["services"]},
-        ).scalars().all()
-        if len(services) != len(data.service_ids):
-            raise HTTPException(status_code=422, detail="Select active services and categories")
-
-        for table, selected in (
-            ("skills", data.skill_ids),
-            ("tools", data.tool_ids),
-        ):
-            # Table names are fixed server-side allowlisted values.
-            found = db.execute(
-                text(
-                    "SELECT id FROM public." + table
-                    + " WHERE id = ANY(CAST(:ids AS uuid[])) AND is_active = TRUE"
-                ),
-                {"ids": choices[table]},
-            ).scalars().all()
-            if len(found) != len(selected):
-                raise HTTPException(
-                    status_code=422,
-                    detail="Select valid active " + table,
-                )
-
-        incompatible = db.execute(
-            text("""
-                SELECT s.name
-                FROM public.services s
-                WHERE s.id = ANY(CAST(:services AS uuid[]))
-                  AND (
-                      NOT EXISTS (
-                          SELECT 1 FROM public.service_skills ss
-                          WHERE ss.service_id = s.id AND ss.is_required = TRUE
-                            AND ss.skill_id = ANY(CAST(:skills AS uuid[]))
-                      )
-                      OR EXISTS (
-                          SELECT 1 FROM public.service_tools st
-                          WHERE st.service_id = s.id AND st.is_required = TRUE
-                            AND NOT (
-                                st.tool_id = ANY(CAST(:tools AS uuid[]))
-                            )
-                      )
-                  )
-                LIMIT 1
-            """),
-            choices,
-        ).scalar_one_or_none()
-        if incompatible is not None:
-            raise HTTPException(
-                status_code=422,
-                detail=(
-                    "Required skill or tools are missing for " + incompatible
-                    + ". Select only services you are equipped to perform."
-                ),
-            )
+        validate_technician_choices(db, data)
 
         user_id = db.execute(
             text("""
@@ -591,63 +551,7 @@ def register_technician(
             {"id": technician_id},
         )
 
-        application_id = db.execute(
-            text("""
-                INSERT INTO public.technician_applications (
-                    technician_id, date_of_birth, gender,
-                    address_line1, address_line2, city, state, pincode, work_area
-                )
-                VALUES (
-                    :technician_id, :dob, :gender,
-                    :address1, :address2, :city, :state, :pincode, :work_area
-                )
-                RETURNING id
-            """),
-            {
-                "technician_id": technician_id,
-                "dob": data.date_of_birth,
-                "gender": data.gender,
-                "address1": data.address_line1,
-                "address2": data.address_line2,
-                "city": data.city,
-                "state": data.state,
-                "pincode": data.pincode,
-                "work_area": data.work_area,
-            },
-        ).scalar_one()
-
-        db.execute(
-            text("""
-                INSERT INTO public.technician_application_services (
-                    application_id, service_id
-                )
-                VALUES (:application_id, :service_id)
-            """),
-            [
-                {"application_id": application_id, "service_id": value}
-                for value in data.service_ids
-            ],
-        )
-        db.execute(
-            text("""
-                INSERT INTO public.technician_skills (technician_id, skill_id)
-                VALUES (:technician_id, :skill_id)
-            """),
-            [
-                {"technician_id": technician_id, "skill_id": value}
-                for value in data.skill_ids
-            ],
-        )
-        db.execute(
-            text("""
-                INSERT INTO public.technician_tools (technician_id, tool_id)
-                VALUES (:technician_id, :tool_id)
-            """),
-            [
-                {"technician_id": technician_id, "tool_id": value}
-                for value in data.tool_ids
-            ],
-        )
+        application_id = save_technician_application(db, data, technician_id)
 
         token = create_access_token(data={
             "sub": str(user_id),
@@ -713,7 +617,9 @@ def get_my_technician_application(
                    a.id AS application_id, a.status AS application_status,
                    a.version, a.review_reason, a.created_at,
                    a.date_of_birth, a.gender, a.address_line1, a.address_line2,
-                   a.city, a.state, a.pincode, a.work_area
+                   a.city, a.state, a.pincode, a.work_area,
+                   EXISTS (SELECT 1 FROM public.technician_onboarding_drafts d
+                           WHERE d.technician_id = t.id) AS onboarding_required
             FROM public.technicians t
             JOIN public.users u ON u.id = t.user_id
             LEFT JOIN public.technician_kyc k ON k.technician_id = t.id
@@ -824,3 +730,137 @@ def get_technician_registration_options(
         "required_skills": [dict(row) for row in required_skills],
         "required_tools": [dict(row) for row in required_tools],
     }
+
+
+def validate_technician_choices(db, data):
+    choices = {
+        "services": [str(value) for value in data.service_ids],
+        "skills": [str(value) for value in data.skill_ids],
+        "tools": [str(value) for value in data.tool_ids],
+    }
+
+    services = db.execute(
+        text("""
+            SELECT s.id
+            FROM public.services s
+            JOIN public.service_categories c ON c.id = s.category_id
+            WHERE s.id = ANY(CAST(:ids AS uuid[]))
+              AND s.is_active = TRUE AND c.is_active = TRUE
+        """),
+        {"ids": choices["services"]},
+    ).scalars().all()
+    if len(services) != len(data.service_ids):
+        raise HTTPException(status_code=422, detail="Select active services and categories")
+
+    for table, selected in (
+        ("skills", data.skill_ids),
+        ("tools", data.tool_ids),
+    ):
+        # Table names are fixed server-side allowlisted values.
+        found = db.execute(
+            text(
+                "SELECT id FROM public." + table
+                + " WHERE id = ANY(CAST(:ids AS uuid[])) AND is_active = TRUE"
+            ),
+            {"ids": choices[table]},
+        ).scalars().all()
+        if len(found) != len(selected):
+            raise HTTPException(
+                status_code=422,
+                detail="Select valid active " + table,
+            )
+
+    incompatible = db.execute(
+        text("""
+            SELECT s.name
+            FROM public.services s
+            WHERE s.id = ANY(CAST(:services AS uuid[]))
+              AND (
+                  NOT EXISTS (
+                      SELECT 1 FROM public.service_skills ss
+                      WHERE ss.service_id = s.id AND ss.is_required = TRUE
+                        AND ss.skill_id = ANY(CAST(:skills AS uuid[]))
+                  )
+                  OR EXISTS (
+                      SELECT 1 FROM public.service_tools st
+                      WHERE st.service_id = s.id AND st.is_required = TRUE
+                        AND NOT (
+                            st.tool_id = ANY(CAST(:tools AS uuid[]))
+                        )
+                  )
+              )
+            LIMIT 1
+        """),
+        choices,
+    ).scalar_one_or_none()
+    if incompatible is not None:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "Required skill or tools are missing for " + incompatible
+                + ". Select only services you are equipped to perform."
+            ),
+        )
+
+
+
+def save_technician_application(db, data, technician_id):
+    application_id = db.execute(
+        text("""
+            INSERT INTO public.technician_applications (
+                technician_id, date_of_birth, gender,
+                address_line1, address_line2, city, state, pincode, work_area
+            )
+            VALUES (
+                :technician_id, :dob, :gender,
+                :address1, :address2, :city, :state, :pincode, :work_area
+            )
+            RETURNING id
+        """),
+        {
+            "technician_id": technician_id,
+            "dob": data.date_of_birth,
+            "gender": data.gender,
+            "address1": data.address_line1,
+            "address2": data.address_line2,
+            "city": data.city,
+            "state": data.state,
+            "pincode": data.pincode,
+            "work_area": data.work_area,
+        },
+    ).scalar_one()
+
+    db.execute(
+        text("""
+            INSERT INTO public.technician_application_services (
+                application_id, service_id
+            )
+            VALUES (:application_id, :service_id)
+        """),
+        [
+            {"application_id": application_id, "service_id": value}
+            for value in data.service_ids
+        ],
+    )
+    db.execute(
+        text("""
+            INSERT INTO public.technician_skills (technician_id, skill_id)
+            VALUES (:technician_id, :skill_id)
+        """),
+        [
+            {"technician_id": technician_id, "skill_id": value}
+            for value in data.skill_ids
+        ],
+    )
+    db.execute(
+        text("""
+            INSERT INTO public.technician_tools (technician_id, tool_id)
+            VALUES (:technician_id, :tool_id)
+        """),
+        [
+            {"technician_id": technician_id, "tool_id": value}
+            for value in data.tool_ids
+        ],
+    )
+
+    return application_id

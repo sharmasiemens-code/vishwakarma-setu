@@ -1,6 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { apiRequest } from '../api/client'
+import { useLanguage } from '../../../shared/Experience'
 import IncomingJobs from './IncomingJobs'
+import ManualLocation from '../components/ManualLocation'
 import JobPhotos from '../components/JobPhotos'
 import StartWorkPin from '../components/StartWorkPin'
 import CompleteWork from '../components/CompleteWork'
@@ -8,7 +10,8 @@ import CompleteWork from '../components/CompleteWork'
 const LOCATION_INTERVAL_MS = 5 * 60 * 1000
 const NOTIFICATION_INTERVAL_MS = 15 * 1000
 
-function Dashboard({ user, onLogout, onViewEarnings, onChangePassword }) {
+function Dashboard({ user, onLogout, onViewEarnings, onChangePassword, onViewRatings }) {
+  const { t } = useLanguage()
   const [dashboard, setDashboard] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -23,6 +26,10 @@ function Dashboard({ user, onLogout, onViewEarnings, onChangePassword }) {
   const [notificationLoading, setNotificationLoading] = useState(false)
 
   const notificationBellRef = useRef(null)
+  const actionLock = useRef(false)
+  const manualLocation = useRef(false)
+  const locationLock = useRef(false)
+  const ratingNotification = useRef(null)
 
   function closeNotifications() {
     setNotificationsOpen(false)
@@ -43,9 +50,10 @@ function Dashboard({ user, onLogout, onViewEarnings, onChangePassword }) {
     return () => document.removeEventListener('keydown', handleEscape)
   }, [notificationsOpen])
 
-  async function loadDashboard() {
+  const loadDashboard = useCallback(async () => {
     try {
-      const data = await apiRequest('/technicians/me/dashboard')
+      const [data, ratings] = await Promise.all([apiRequest('/technicians/me/dashboard'), apiRequest('/ratings/me?limit=1')])
+      if (data.dashboard?.profile) { data.dashboard.profile.rating_average = ratings.rating_average; data.dashboard.profile.review_count = ratings.total_reviews }
       setDashboard(data.dashboard || null)
       setError('')
     } catch (err) {
@@ -53,9 +61,9 @@ function Dashboard({ user, onLogout, onViewEarnings, onChangePassword }) {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
-  async function loadNotifications(silent = false) {
+  const loadNotifications = useCallback(async (silent = false) => {
     if (!silent) {
       setNotificationLoading(true)
     }
@@ -66,6 +74,11 @@ function Dashboard({ user, onLogout, onViewEarnings, onChangePassword }) {
         apiRequest('/notifications/unread-count'),
       ])
 
+      const latestRating = notificationData.notifications?.find((item) => item.notification_type === 'RATING_RECEIVED')
+      if (latestRating && ratingNotification.current !== latestRating.id) {
+        ratingNotification.current = latestRating.id
+        loadDashboard()
+      }
       setNotifications(notificationData.notifications || [])
       setUnreadCount(
         unreadData.unread_count ??
@@ -82,7 +95,7 @@ function Dashboard({ user, onLogout, onViewEarnings, onChangePassword }) {
         setNotificationLoading(false)
       }
     }
-  }
+  }, [loadDashboard])
 
   async function markNotificationRead(notificationId) {
     if (!notificationId) return
@@ -122,14 +135,16 @@ function Dashboard({ user, onLogout, onViewEarnings, onChangePassword }) {
       window.clearTimeout(timerId)
       window.clearInterval(notificationIntervalId)
     }
-  }, [])
+  }, [loadDashboard, loadNotifications])
 
   async function updateLocation() {
+    if (locationLock.current) return false
     if (!navigator.geolocation) {
       setLocationMessage('Geolocation is not supported by this browser.')
       return false
     }
 
+    locationLock.current = true
     setLocationLoading(true)
     setLocationMessage('Getting your current location...')
     setError('')
@@ -176,7 +191,7 @@ function Dashboard({ user, onLogout, onViewEarnings, onChangePassword }) {
     } catch (err) {
       if (err?.code === 1) {
         setLocationMessage(
-          'Location permission was denied. Please allow location access in your browser.',
+          'Location permission was denied. Use Manual location below, or enable location in your browser settings.',
         )
       } else if (err?.code === 2) {
         setLocationMessage('Unable to determine your current location.')
@@ -190,26 +205,30 @@ function Dashboard({ user, onLogout, onViewEarnings, onChangePassword }) {
 
       return false
     } finally {
+      locationLock.current = false
       setLocationLoading(false)
     }
   }
 
   useEffect(() => {
-    const initialLocationTimer = window.setTimeout(() => {
-      updateLocation()
-    }, 1500)
+
 
     const locationIntervalId = window.setInterval(() => {
-      updateLocation()
+      if (document.visibilityState === 'visible') {
+        navigator.permissions?.query({ name: 'geolocation' }).then((permission) => {
+          if (permission.state === 'granted') updateLocation()
+        }).catch(() => {})
+      }
     }, LOCATION_INTERVAL_MS)
 
     return () => {
-      window.clearTimeout(initialLocationTimer)
       window.clearInterval(locationIntervalId)
     }
   }, [])
 
   async function changeAvailability(newStatus) {
+    if (actionLock.current) return
+    actionLock.current = true
     setAvailabilityLoading(true)
     setError('')
     setLocationMessage('')
@@ -232,6 +251,7 @@ function Dashboard({ user, onLogout, onViewEarnings, onChangePassword }) {
         err.message || `Unable to change availability to ${newStatus}.`,
       )
     } finally {
+      actionLock.current = false
       setAvailabilityLoading(false)
     }
   }
@@ -240,13 +260,12 @@ function Dashboard({ user, onLogout, onViewEarnings, onChangePassword }) {
     setError('')
     setLocationMessage('First updating your location...')
 
-    const locationUpdated = await updateLocation()
+    const locationUpdated = manualLocation.current || await updateLocation()
 
     if (!locationUpdated) {
       return
     }
 
-    await new Promise((resolve) => window.setTimeout(resolve, 300))
     await changeAvailability('ONLINE')
   }
 
@@ -260,6 +279,8 @@ function Dashboard({ user, onLogout, onViewEarnings, onChangePassword }) {
       return
     }
 
+    if (actionLock.current) return
+    actionLock.current = true
     setJobStatusLoading(true)
     setError('')
     setLocationMessage('')
@@ -283,6 +304,7 @@ function Dashboard({ user, onLogout, onViewEarnings, onChangePassword }) {
         err.message || `Unable to change job status to ${newStatus}.`,
       )
     } finally {
+      actionLock.current = false
       setJobStatusLoading(false)
     }
   }
@@ -509,7 +531,7 @@ function Dashboard({ user, onLogout, onViewEarnings, onChangePassword }) {
                       <button
                         type="button"
                         key={notification.id}
-                        onClick={() => markNotificationRead(notification.id)}
+                        onClick={() => { markNotificationRead(notification.id); if (notification.notification_type === 'RATING_RECEIVED') onViewRatings(notification.reference_id); else loadDashboard() }}
                         style={{
                           display: 'block',
                           width: '100%',
@@ -639,7 +661,7 @@ function Dashboard({ user, onLogout, onViewEarnings, onChangePassword }) {
                 onClick={handleGoOffline}
                 disabled={availabilityLoading}
               >
-                {availabilityLoading ? 'Updating...' : 'Go Offline'}
+                {availabilityLoading ? 'Updating...' : t('Go Offline')}
               </button>
             ) : (
               <button
@@ -650,7 +672,7 @@ function Dashboard({ user, onLogout, onViewEarnings, onChangePassword }) {
               >
                 {availabilityLoading || locationLoading
                   ? 'Going Online...'
-                  : 'Go Online'}
+                  : t('Go Online')}
               </button>
             )}
           </div>
@@ -662,9 +684,14 @@ function Dashboard({ user, onLogout, onViewEarnings, onChangePassword }) {
               fontSize: '13px',
             }}
           >
-            📍 Location auto-updates every 5 minutes
+            Your position helps nearby customers find you. While this screen is open, GPS refreshes every 5 minutes if permission is granted.
           </p>
 
+          <ManualLocation onSaved={() => {
+            manualLocation.current = true
+            setLocationMessage('Position saved. Select Go Online when ready. Confirm your location again after moving; stale locations cannot receive jobs.')
+            loadDashboard()
+          }} />
           {locationMessage && (
             <p
               style={{
@@ -892,13 +919,14 @@ function Dashboard({ user, onLogout, onViewEarnings, onChangePassword }) {
               boxShadow: '0 8px 24px rgba(15, 23, 42, 0.06)',
             }}
           >
+            <button type="button" onClick={() => onViewRatings()}>{t('View Ratings')} · {profile.review_count ?? 0}</button>
             <div style={{ color: '#64748b', fontSize: '12px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.8px' }}>
               Rating
             </div>
             <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span style={{ fontSize: '22px' }}>⭐</span>
               <strong style={{ fontSize: '25px', color: '#0f172a' }}>
-                {Number(profile.rating_average ?? 0).toFixed(2)}
+                {profile.rating_average == null ? '—' : Number(profile.rating_average).toFixed(2)}
               </strong>
               <span style={{ color: '#94a3b8', fontSize: '12px' }}>/ 5</span>
             </div>

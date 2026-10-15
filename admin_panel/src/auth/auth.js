@@ -83,7 +83,8 @@ export async function getCurrentAdmin() {
       ...data.token_data,
       ...access,
     }
-  } catch {
+  } catch (error) {
+    if (error.status !== 401 && error.status !== 403) throw error
     logout()
     return null
   }

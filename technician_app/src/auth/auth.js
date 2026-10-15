@@ -63,7 +63,8 @@ async function getCurrentUser() {
     localStorage.setItem(USER_KEY, JSON.stringify(user))
 
     return user
-  } catch {
+  } catch (error) {
+    if (error.status !== 401) throw error
     logout()
     return null
   }
@@ -106,7 +107,7 @@ export {
 }
 
 export async function registerTechnician(details) {
-  const response = await apiRequest('/auth/register/technician', {
+  const response = await apiRequest('/auth/register/technician/account', {
     method: 'POST',
     body: JSON.stringify(details),
   })

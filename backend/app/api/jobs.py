@@ -22,7 +22,7 @@ router = APIRouter(
 class JobCreate(BaseModel):
     service_request_id: UUID
     technician_id: UUID
-    estimated_amount: float | None = None
+    estimated_amount: float | None = Field(default=None, ge=0, allow_inf_nan=False)
 
 
 class JobResponse(BaseModel):
@@ -36,13 +36,13 @@ def create_job(
     db: Session = Depends(get_db),
 ):
     # Only customers can assign a technician
-    settings = get_system_settings(db)
     if current_user.get("role") != "CUSTOMER":
         raise HTTPException(
             status_code=403,
             detail="Only customers can assign technicians",
         )
 
+    settings = get_system_settings(db)
     user_id = current_user.get("sub")
 
     if not user_id:
@@ -104,7 +104,8 @@ def create_job(
         WHERE
             t.id = :technician_id
             AND u.is_active = TRUE
-            AND u.is_verified = TRUE;
+            AND u.is_verified = TRUE
+        FOR UPDATE OF t;
     """)
 
     technician = db.execute(
@@ -119,6 +120,11 @@ def create_job(
             status_code=404,
             detail="Technician not found or inactive",
         )
+
+    # Approval includes manual phone and address verification for new accounts.
+    from app.core.technician_onboarding import require_technician_work_approval
+    require_technician_work_approval(db, {"sub": str(technician.user_id),
+        "role": "TECHNICIAN", "technician_id": str(technician.id)})
 
     # 4. Technician must be KYC approved
     if technician.kyc_status != "APPROVED":
@@ -350,10 +356,10 @@ def create_job(
     except Exception as exc:
         db.rollback()
 
-        if "idx_jobs_one_active_per_service_request" in str(exc):
+        if any(name in str(exc) for name in ("idx_jobs_one_active_per_service_request", "rw_jobs_one_active_per_technician")):
             raise HTTPException(
                 status_code=409,
-                detail="This service request already has an active job",
+                detail="This request or technician already has an active job",
             )
 
         raise HTTPException(
@@ -607,6 +613,15 @@ def respond_to_job(
             status_code=409,
             detail=f"Job cannot be responded to. Current status: {job.status}",
         )
+
+    from app.core.technician_onboarding import require_technician_work_approval
+    require_technician_work_approval(db, current_user)
+    db.execute(text("SELECT id FROM technicians WHERE id = :id FOR UPDATE"), {"id": technician_id})
+    if action == "ACCEPT" and db.execute(text("""
+        SELECT id FROM jobs WHERE technician_id = :id AND id <> :job
+        AND status IN ('ASSIGNED','ACCEPTED','ON_THE_WAY','ARRIVED','IN_PROGRESS') LIMIT 1
+    """), {"id": technician_id, "job": job_id}).first():
+        raise HTTPException(409, "Finish or decline your other active job first")
 
     if action == "ACCEPT":
         new_status = "ACCEPTED"

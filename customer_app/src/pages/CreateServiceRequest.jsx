@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { apiRequest } from '../api/client'
+import { useLanguage } from '../../../shared/Experience'
 import { uploadRequestPhoto } from '../api/photos'
 import RequestPhotoPicker from '../components/RequestPhotoPicker'
 
@@ -43,6 +44,7 @@ const STEPS = [
 ]
 
 function CreateServiceRequest({ onBack, onCreated }) {
+  const { t } = useLanguage()
   const [categories, setCategories] = useState([])
   const [services, setServices] = useState([])
 
@@ -372,7 +374,7 @@ function CreateServiceRequest({ onBack, onCreated }) {
       const longitude = Number(form.longitude)
 
       if (
-        !Number.isFinite(latitude) ||
+        !form.latitude.trim() || !Number.isFinite(latitude) ||
         latitude < -90 ||
         latitude > 90
       ) {
@@ -383,7 +385,7 @@ function CreateServiceRequest({ onBack, onCreated }) {
       }
 
       if (
-        !Number.isFinite(longitude) ||
+        !form.longitude.trim() || !Number.isFinite(longitude) ||
         longitude < -180 ||
         longitude > 180
       ) {
@@ -486,14 +488,22 @@ function CreateServiceRequest({ onBack, onCreated }) {
     setSubmitting(true)
 
     try {
+      const fingerprint = Array.from(new Uint8Array(await crypto.subtle.digest(
+        'SHA-256', new TextEncoder().encode(JSON.stringify(payload)),
+      )), (byte) => byte.toString(16).padStart(2, '0')).join('')
+      const storageKey = `setu-request-${fingerprint}`
+      const requestKey = sessionStorage.getItem(storageKey) || crypto.randomUUID()
+      sessionStorage.setItem(storageKey, requestKey)
       const data = await apiRequest(
         '/service-requests',
         {
           method: 'POST',
+          headers: { 'Idempotency-Key': requestKey },
           body: JSON.stringify(payload),
         },
       )
 
+      sessionStorage.removeItem(storageKey)
       setCreatedResponse(data)
 
       const requestId = data?.service_request?.id
@@ -819,7 +829,7 @@ function CreateServiceRequest({ onBack, onCreated }) {
                           fontSize: '13px',
                         }}
                       >
-                        {step.title}
+                        {t(step.title)}
                       </strong>
 
                       <span
@@ -1111,7 +1121,7 @@ function CreateServiceRequest({ onBack, onCreated }) {
                   }
                   style={primaryButtonStyle}
                 >
-                  Continue →
+                  {t('Continue')} →
                 </button>
               </div>
             </section>
@@ -1301,7 +1311,7 @@ function CreateServiceRequest({ onBack, onCreated }) {
                   disabled={submitting || Boolean(createdResponse)}
                   style={secondaryButtonStyle}
                 >
-                  ← Back
+                  ← {t('Back')}
                 </button>
 
                 <button
@@ -1313,7 +1323,7 @@ function CreateServiceRequest({ onBack, onCreated }) {
                   }
                   style={primaryButtonStyle}
                 >
-                  Continue →
+                  {t('Continue')} →
                 </button>
               </div>
             </section>
@@ -1481,7 +1491,7 @@ function CreateServiceRequest({ onBack, onCreated }) {
                           ? 'Getting Location...'
                           : locationCaptured
                             ? '✓ Location Updated'
-                            : '📍 Use My Location'}
+                            : `📍 ${t('Use My Location')}`}
                       </button>
                     </div>
 
@@ -1593,8 +1603,8 @@ function CreateServiceRequest({ onBack, onCreated }) {
                       }}
                     >
                       {showAdvancedLocation
-                        ? '− Hide Advanced Location'
-                        : '+ Advanced Location'}
+                        ? `− ${t('Manual location')}`
+                        : `+ ${t('Manual location')}`}
                     </button>
                   </div>
 
@@ -1743,7 +1753,7 @@ function CreateServiceRequest({ onBack, onCreated }) {
                   disabled={submitting || Boolean(createdResponse)}
                   style={secondaryButtonStyle}
                 >
-                  ← Back
+                  ← {t('Back')}
                 </button>
 
                 <button
@@ -1751,7 +1761,7 @@ function CreateServiceRequest({ onBack, onCreated }) {
                   disabled={submitting || Boolean(createdResponse)}
                   style={primaryButtonStyle}
                 >
-                  Review Request →
+                  {t('Review Request')} →
                 </button>
               </div>
             </section>
@@ -2140,6 +2150,7 @@ function CreateServiceRequest({ onBack, onCreated }) {
 }
 
 function Field({ label, required, children }) {
+  const { t } = useLanguage()
   return (
     <label
       style={{
@@ -2154,7 +2165,7 @@ function Field({ label, required, children }) {
           fontSize: '14px',
         }}
       >
-        {label}
+        {t(label)}
 
         {required && (
           <span

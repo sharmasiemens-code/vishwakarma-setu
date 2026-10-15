@@ -67,7 +67,7 @@ function ServiceRequestDetail({ requestId, onBack, focusMatches = false }) {
   const [rating, setRating] = useState(null)
 
   const [selectedTechnicianId, setSelectedTechnicianId] = useState('')
-  const [estimatedAmount, setEstimatedAmount] = useState('1200')
+  const [estimatedAmount, setEstimatedAmount] = useState('')
   const [ratingValue, setRatingValue] = useState(5)
   const [review, setReview] = useState('')
 
@@ -951,14 +951,14 @@ setMatches(
 
                         <p className="request-location">
                           Rating:{' '}
-                          {item.rating_average ??
-                            0}{' '}
-                          / 5
+                          {item.rating_average == null ? 'No ratings yet' : `${item.rating_average} / 5`}
+                          {' · '}{item.review_count ?? 0} reviews
                         </p>
 
                         <p className="request-location">
-                          Jobs:{' '}
+                          Completed jobs:{' '}
                           {item.total_jobs ?? 0}
+                          {item.verification_approved === true && ' · Verification approved'}
                         </p>
 
                         <p className="request-location">
@@ -1138,7 +1138,7 @@ setMatches(
               <h2 id="confirm-technician-title">
                 Confirm Technician
               </h2>
-              <p>Review the technician and estimated amount before assigning the job.</p>
+              <p>Set your proposed estimate before assigning. This is not a final quote. Agree on the total price with the technician before work starts. Any additional fee must be disclosed before you confirm.</p>
 
               <div className="request-card">
                 <div className="request-main">
@@ -1150,7 +1150,7 @@ setMatches(
                     Experience: {technician.experience_years ?? 0} years
                   </p>
                   <p className="request-location">
-                    Rating: {technician.rating_average ?? 0} / 5
+                    Rating: {technician.rating_average == null ? 'No ratings yet' : `${technician.rating_average} / 5`}
                   </p>
                   <p className="request-location">
                     Distance: {technician.distance_km ?? '-'} km

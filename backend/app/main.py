@@ -8,6 +8,10 @@ logger = logging.getLogger("tech_expert_marketplace")
 
 from dotenv import load_dotenv
 from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+from sqlalchemy.exc import SQLAlchemyError
+from app.core.safe_routes import validation_response
 from fastapi.middleware.cors import CORSMiddleware
 load_dotenv()
 
@@ -24,6 +28,8 @@ from app.api.dispute_photos import router as dispute_photos_router
 from app.api.technicians import router as technicians_router
 from app.api.auth import router as auth_router
 from app.api.passwords import router as passwords_router
+from app.api.onboarding import router as onboarding_router
+from app.api.profile import router as profile_router
 from app.api.ratings import router as ratings_router
 from app.api.notifications import router as notifications_router
 from app.api.admin import router as admin_router
@@ -49,6 +55,8 @@ async def technician_presence_worker():
                     result["offline_count"],
                 )
 
+        except SQLAlchemyError as exc:
+            logger.error("Technician presence database failure (%s)", type(getattr(exc, "orig", exc)).__name__)
         except Exception:
             logger.exception(
                 "Technician presence synchronization failed"
@@ -84,9 +92,30 @@ app = FastAPI(
     openapi_url="/openapi.json" if docs_enabled else None,
 )
 
+@app.exception_handler(SQLAlchemyError)
+async def safe_database_error(request, exc):
+    # Driver constraint errors may contain whole rows, including private data.
+    logger.error("Database request failed (%s)", type(getattr(exc, "orig", exc)).__name__)
+    return JSONResponse(status_code=503, content={"detail": "The service is temporarily unavailable. Refresh before submitting again."},
+                        headers={"Cache-Control": "no-store", "Retry-After": "3"})
+
+
+@app.exception_handler(RequestValidationError)
+async def safe_validation_error(request, exc):
+    return validation_response(exc)
+
+
+@app.middleware("http")
+async def private_api_responses(request, call_next):
+    response = await call_next(request)
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    return response
+
+
 app.add_middleware(
     CORSMiddleware,
-allow_origins=[
+allow_origins=[origin.strip() for origin in os.environ["CORS_ORIGINS"].split(",") if origin.strip()] if os.getenv("CORS_ORIGINS") else [
     "http://localhost:5173",
     "http://localhost:5174",
     "http://localhost:5175",
@@ -101,6 +130,8 @@ allow_origins=[
 
 
 app.include_router(auth_router)
+app.include_router(profile_router)
+app.include_router(onboarding_router)
 app.include_router(passwords_router)
 app.include_router(matching_router)
 app.include_router(services_router)

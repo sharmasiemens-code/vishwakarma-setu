@@ -1,45 +1,14 @@
-const API_BASE_URL = 'http://127.0.0.1:8000'
-
-export async function apiRequest(
-  path,
-  options = {},
-  token = null,
-) {
-  const headers = {
-    ...(options.body
-      ? { 'Content-Type': 'application/json' }
-      : {}),
-    ...(options.headers || {}),
-  }
-
-  if (token) {
-    headers.Authorization = `Bearer ${token}`
-  }
-
-  const response = await fetch(
-    `${API_BASE_URL}${path}`,
-    {
-      ...options,
-      headers,
-    },
-  )
-
-  const data = await response
-    .json()
-    .catch(() => null)
-
-  if (!response.ok) {
-    const message =
-      (Array.isArray(data?.detail)
-        ? data.detail.map((item) => item.msg || 'Invalid input').join('; ')
-        : data?.detail) ||
-      data?.message ||
-      `Request failed with status ${response.status}`
-
-    const error = new Error(message)
-    error.status = response.status
-    throw error
-  }
-
-  return data
+import { requestJson } from '../../../shared/http'
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
+export async function apiRequest(path, options = {}, token = null) {
+  return requestJson(`${API_BASE_URL}${path}`, {
+    ...options,
+    headers: { ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(options.headers || {}) },
+  }, () => {
+    if (token && localStorage.getItem('vishwakarma_setu_admin_token') === token) {
+      localStorage.removeItem('vishwakarma_setu_admin_token')
+      window.dispatchEvent(new Event('setu-session-expired'))
+    }
+  })
 }

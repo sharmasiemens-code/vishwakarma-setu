@@ -771,8 +771,8 @@ def get_my_technician_profile(
             t.service_radius_km,
             t.kyc_status,
             t.availability_status,
-            t.rating_average,
-            t.total_jobs
+            (SELECT ROUND(AVG(r.rating)::numeric, 2) FROM ratings r WHERE r.technician_id = t.id) AS rating_average,
+            (SELECT COUNT(*) FROM jobs done WHERE done.technician_id = t.id AND done.status = 'COMPLETED') AS total_jobs
         FROM technicians t
         JOIN users u
             ON u.id = t.user_id
@@ -824,8 +824,8 @@ def get_technician(
             t.bio,
             t.service_radius_km,
             t.availability_status,
-            t.rating_average,
-            t.total_jobs,
+            (SELECT ROUND(AVG(r.rating)::numeric, 2) FROM ratings r WHERE r.technician_id = t.id) AS rating_average,
+            (SELECT COUNT(*) FROM jobs done WHERE done.technician_id = t.id AND done.status = 'COMPLETED') AS total_jobs,
             t.kyc_status
         FROM technicians t
         JOIN users u
@@ -1035,8 +1035,8 @@ def get_my_technician_dashboard(
             t.service_radius_km,
             t.kyc_status,
             t.availability_status,
-            t.rating_average,
-            t.total_jobs
+            (SELECT ROUND(AVG(r.rating)::numeric, 2) FROM ratings r WHERE r.technician_id = t.id) AS rating_average,
+            (SELECT COUNT(*) FROM jobs done WHERE done.technician_id = t.id AND done.status = 'COMPLETED') AS total_jobs
         FROM technicians t
         JOIN users u
             ON u.id = t.user_id

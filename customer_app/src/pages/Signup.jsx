@@ -1,7 +1,11 @@
 import { useRef, useState } from 'react'
 import { registerCustomer } from '../auth/auth'
+import { useLanguage } from '../../../shared/Experience'
 
 export default function Signup({ onBack, onRegistered }) {
+  const { t } = useLanguage()
+  const [email, setEmail] = useState('')
+  const [birthDate, setBirthDate] = useState('')
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [password, setPassword] = useState('')
@@ -54,6 +58,8 @@ export default function Signup({ onBack, onRegistered }) {
         full_name: name.trim(),
         phone,
         password,
+        email: email.trim() || null,
+        date_of_birth: birthDate || null,
       })
       setPassword('')
       setConfirmation('')
@@ -73,11 +79,11 @@ export default function Signup({ onBack, onRegistered }) {
     <div className="login-page">
       <div className="login-card">
         <h1>Vishwakarma Setu</h1>
-        <p className="login-subtitle">Create your customer account</p>
+        <p className="login-subtitle">{t('Create your customer account')}</p>
         <p>Find skilled technicians near you. Register with your mobile number.</p>
 
         <form onSubmit={submit}>
-          <label htmlFor="signup-name">Full name</label>
+          <label htmlFor="signup-name">{t('Full name')}</label>
           <input
             id="signup-name"
             type="text"
@@ -89,7 +95,7 @@ export default function Signup({ onBack, onRegistered }) {
             required
           />
 
-          <label htmlFor="signup-phone">Mobile number</label>
+          <label htmlFor="signup-phone">{t('Mobile number')}</label>
           <input
             id="signup-phone"
             type="tel"
@@ -109,7 +115,16 @@ export default function Signup({ onBack, onRegistered }) {
             Use your own mobile number. You will use it to sign in.
           </p>
 
-          <label htmlFor="signup-password">Create password</label>
+          <details style={{ marginBottom: 16 }}>
+            <summary>{t('Email (optional)')} · {t('Date of birth (optional)')}</summary>
+            <p>{t('Email is an optional contact and sign-in address. Date of birth is optional private profile information; it is not shown to technicians. You can add or remove both later.')}</p>
+            <label htmlFor="signup-email">{t('Email (optional)')}</label>
+            <input id="signup-email" type="email" autoComplete="email" maxLength={254} value={email} onChange={(event) => setEmail(event.target.value)} disabled={busy} />
+            <label htmlFor="signup-dob">{t('Date of birth (optional)')}</label>
+            <input id="signup-dob" type="date" autoComplete="bday" value={birthDate} onChange={(event) => setBirthDate(event.target.value)} disabled={busy} />
+          </details>
+
+          <label htmlFor="signup-password">{t('Create password')}</label>
           <input
             id="signup-password"
             type={showPassword ? 'text' : 'password'}
@@ -126,7 +141,7 @@ export default function Signup({ onBack, onRegistered }) {
             At least eight characters, including a letter and a number.
           </p>
 
-          <label htmlFor="signup-confirmation">Confirm password</label>
+          <label htmlFor="signup-confirmation">{t('Confirm password')}</label>
           <input
             id="signup-confirmation"
             type={showPassword ? 'text' : 'password'}
@@ -145,7 +160,7 @@ export default function Signup({ onBack, onRegistered }) {
             disabled={busy}
             style={{ marginBottom: 16 }}
           >
-            {showPassword ? 'Hide passwords' : 'Show passwords'}
+            {t(showPassword ? 'Hide passwords' : 'Show passwords')}
           </button>
 
           {error && <p className="login-error" role="alert">{error}</p>}
@@ -156,7 +171,7 @@ export default function Signup({ onBack, onRegistered }) {
             disabled={busy}
             style={{ width: '100%' }}
           >
-            {busy ? 'Creating your account...' : 'Create Account and Continue'}
+            {t(busy ? 'Creating your account...' : 'Create Account and Continue')}
           </button>
         </form>
 
@@ -166,7 +181,7 @@ export default function Signup({ onBack, onRegistered }) {
           disabled={busy}
           style={{ width: '100%', marginTop: 16 }}
         >
-          Already registered? Sign In
+          {t('Already registered? Sign In')}
         </button>
       </div>
     </div>

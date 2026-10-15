@@ -1,252 +1,35 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { login } from '../auth/auth'
+import { useLanguage } from '../../../shared/Experience'
 
-function Login({ onLogin, onSignup }) {
-  const [email, setEmail] = useState('')
+export default function Login({ onLogin, onSignup }) {
+  const { t, language } = useLanguage()
+  const [identifier, setIdentifier] = useState('')
   const [password, setPassword] = useState('')
-  const [submitting, setSubmitting] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+  const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-
-  async function handleSubmit(event) {
+  const lock = useRef(false)
+  async function submit(event) {
     event.preventDefault()
-    setError('')
-
-    if (!email.trim()) {
-      setError('Please enter your mobile number or email')
-      return
-    }
-
-    if (!password) {
-      setError('Please enter your password')
-      return
-    }
-
-    setSubmitting(true)
-
-    try {
-      const result = await login(email.trim(), password)
-
-      if (onLogin) {
-        onLogin(result.user)
-      }
-    } catch (err) {
-      setError(
-        err.message ||
-          'Unable to login. Please check your credentials.',
-      )
-    } finally {
-      setSubmitting(false)
-    }
+    if (lock.current) return
+    lock.current = true; setBusy(true); setError('')
+    try { const result = await login(identifier.trim(), password); onLogin(result.user) }
+    catch (err) { setError(err.message || 'Unable to sign in. Please retry.') }
+    finally { lock.current = false; setBusy(false) }
   }
-
-  return (
-    <div
-      className="login-page"
-      style={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '24px',
-        background:
-          'linear-gradient(135deg, #f8fafc 0%, #eef2ff 50%, #f8fafc 100%)',
-        boxSizing: 'border-box',
-      }}
-    >
-      <div
-        className="login-card"
-        style={{
-          width: '100%',
-          maxWidth: '430px',
-          padding: '36px',
-          background: '#ffffff',
-          border: '1px solid #e2e8f0',
-          borderRadius: '20px',
-          boxShadow: '0 20px 50px rgba(15, 23, 42, 0.12)',
-          boxSizing: 'border-box',
-        }}
-      >
-        <div style={{ textAlign: 'center', marginBottom: '28px' }}>
-          <div
-            style={{
-              width: '64px',
-              height: '64px',
-              margin: '0 auto 16px',
-              borderRadius: '18px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              background: '#eef2ff',
-              fontSize: '32px',
-            }}
-            aria-hidden="true"
-          >
-            🔱
-          </div>
-
-          <h1
-            style={{
-              margin: 0,
-              fontSize: '36px',
-              lineHeight: 1.1,
-              fontWeight: '800',
-              letterSpacing: '-1px',
-            }}
-          >
-            Vishwakarma Setu
-          </h1>
-
-          <p
-            className="login-subtitle"
-            style={{
-              margin: '10px 0 0',
-              color: '#64748b',
-              fontSize: '16px',
-              fontWeight: '600',
-            }}
-          >
-            Technician Portal
-          </p>
-
-          <p
-            style={{
-              margin: '6px 0 0',
-              color: '#94a3b8',
-              fontSize: '13px',
-            }}
-          >
-            Connect • Serve • Grow
-          </p>
-        </div>
-
-        {error && (
-          <div
-            className="dashboard-error"
-            role="alert"
-            style={{
-              marginBottom: '18px',
-              padding: '12px 14px',
-              borderRadius: '10px',
-            }}
-          >
-            {error}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit}>
-          <label
-            style={{
-              display: 'block',
-              marginBottom: '16px',
-              color: '#334155',
-              fontWeight: '600',
-            }}
-          >
-            Mobile number or email
-            <input
-              type="text"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              placeholder="Enter mobile number or email"
-              disabled={submitting}
-              autoComplete="username"
-              required
-              style={{
-                width: '100%',
-                marginTop: '7px',
-                padding: '12px 13px',
-                border: '1px solid #cbd5e1',
-                borderRadius: '10px',
-                boxSizing: 'border-box',
-                fontSize: '15px',
-                background: '#fff',
-              }}
-            />
-          </label>
-
-          <label
-            style={{
-              display: 'block',
-              marginBottom: '20px',
-              color: '#334155',
-              fontWeight: '600',
-            }}
-          >
-            Password
-            <input
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              placeholder="Enter your password"
-              disabled={submitting}
-              autoComplete="current-password"
-              required
-              style={{
-                width: '100%',
-                marginTop: '7px',
-                padding: '12px 13px',
-                border: '1px solid #cbd5e1',
-                borderRadius: '10px',
-                boxSizing: 'border-box',
-                fontSize: '15px',
-                background: '#fff',
-              }}
-            />
-          </label>
-
-          <button
-            type="submit"
-            className="primary-action"
-            disabled={submitting}
-            style={{
-              width: '100%',
-              padding: '13px 16px',
-              borderRadius: '10px',
-              fontSize: '15px',
-              fontWeight: '700',
-              cursor: submitting ? 'not-allowed' : 'pointer',
-            }}
-          >
-            {submitting
-              ? 'Signing in...'
-              : 'Sign in to Technician Portal'}
-          </button>
-        <p>Forgot your password? Contact the administrator for a manual reset.</p>
-          </form>
-
-        <div style={{ marginTop: 20, textAlign: 'center' }}>
-          <p style={{ color: '#64748b', fontSize: 14 }}>
-            New to Vishwakarma Setu?
-          </p>
-          <button
-            type="button"
-            onClick={onSignup}
-            disabled={submitting}
-            style={{
-              width: '100%', padding: '12px 16px',
-              border: '1px solid #cbd5e1', borderRadius: 10,
-              background: '#fff', color: '#176b78', fontWeight: 700,
-            }}
-          >
-            Register as a Technician
-          </button>
-        </div>
-
-        <div
-          style={{
-            marginTop: '24px',
-            paddingTop: '18px',
-            borderTop: '1px solid #e2e8f0',
-            textAlign: 'center',
-            color: '#94a3b8',
-            fontSize: '12px',
-          }}
-        >
-          Vishwakarma Setu • Tech Expert Marketplace
-        </div>
-      </div>
-    </div>
-  )
+  return <div className="login-page"><section className="login-card" style={{ margin: '0 auto' }}>
+    <p className="setu-portal">Technician Portal</p>
+    <h1>{t('Sign In')}</h1>
+    <p>{language === 'hi' ? 'अपने मोबाइल नंबर या ईमेल और पासवर्ड से साइन इन करें।' : 'Use your mobile number or email and your password.'}</p>
+    <form className="setu-form" onSubmit={submit}>
+      <label>{language === 'hi' ? 'मोबाइल नंबर या ईमेल' : 'Mobile number or email'}<input type="text" autoComplete="username" required maxLength={255} value={identifier} onChange={(event) => setIdentifier(event.target.value)} disabled={busy} autoCapitalize="none" spellCheck={false} /></label>
+      <label>{language === 'hi' ? 'पासवर्ड' : 'Password'}<input type={showPassword ? 'text' : 'password'} autoComplete="current-password" required maxLength={128} value={password} onChange={(event) => setPassword(event.target.value)} disabled={busy} /></label>
+      <button type="button" aria-pressed={showPassword} onClick={() => setShowPassword(!showPassword)}>{t(showPassword ? 'Hide passwords' : 'Show passwords')}</button>
+      {error && <p role="alert">{error}</p>}
+      <button type="submit" disabled={busy}>{t(busy ? 'Saving...' : 'Sign In')}</button>
+    </form>
+    <div className="setu-actions"><button type="button" onClick={onSignup} disabled={busy}>{language === 'hi' ? 'नया खाता बनाएँ' : 'Create Technician Account'}</button></div>
+    <p><small>{language === 'hi' ? 'पासवर्ड भूल गए? सहायता के लिए अपने प्लेटफ़ॉर्म प्रतिनिधि से संपर्क करें।' : 'Forgot your password? Contact your platform representative for account recovery.'}</small></p>
+  </section></div>
 }
-
-export default Login

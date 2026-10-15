@@ -10,6 +10,7 @@ import './App.css'
 
 function App() {
   const [user, setUser] = useState(null)
+  const [sessionError, setSessionError] = useState('')
   const [checkingAuth, setCheckingAuth] =
     useState(true)
 
@@ -24,8 +25,9 @@ function App() {
         return
       }
 
-      const currentAdmin =
-        await getCurrentAdmin()
+      let currentAdmin
+      try { currentAdmin = await getCurrentAdmin() }
+      catch (error) { if (!cancelled) { setSessionError(error.message); setCheckingAuth(false) }; return }
 
       if (!cancelled) {
         setUser(currentAdmin)
@@ -48,6 +50,8 @@ function App() {
     logout()
     setUser(null)
   }
+
+  if (sessionError) return <section className="setu-empty" role="alert"><p>{sessionError}</p><button onClick={() => window.location.reload()}>Retry</button></section>
 
   if (checkingAuth) {
     return (

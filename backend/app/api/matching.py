@@ -49,9 +49,11 @@ def find_matching_technicians(
             u.full_name,
             t.business_name,
             t.experience_years,
-            t.rating_average,
-            t.total_jobs,
+            (SELECT ROUND(AVG(r.rating)::numeric, 2) FROM ratings r WHERE r.technician_id = t.id) AS rating_average,
+            (SELECT COUNT(*) FROM jobs done WHERE done.technician_id = t.id AND done.status = 'COMPLETED') AS total_jobs,
             t.availability_status,
+            TRUE AS verification_approved,
+            (SELECT COUNT(*) FROM ratings r WHERE r.technician_id = t.id) AS review_count,
 
             ROUND(
                 (
@@ -89,6 +91,11 @@ def find_matching_technicians(
             AND t.kyc_status = 'APPROVED'
             AND k.verification_status = 'APPROVED'
             AND k.address_verified = TRUE
+            AND NOT EXISTS (
+                SELECT 1 FROM public.technician_applications a
+                WHERE a.technician_id = t.id
+                  AND (a.status <> 'APPROVED' OR u.phone_verified_at IS NULL)
+            )
 
             AND t.availability_status = 'ONLINE'
 

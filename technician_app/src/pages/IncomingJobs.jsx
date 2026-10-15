@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { apiRequest } from '../api/client'
 import JobPhotos from '../components/JobPhotos'
 
 function IncomingJobs({ onJobResponded }) {
+  const operationLock = useRef(false)
   const [jobs, setJobs] = useState([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -77,6 +78,8 @@ function IncomingJobs({ onJobResponded }) {
       return
     }
 
+    if (operationLock.current) return
+    operationLock.current = true
     setRespondingJobId(jobId)
     setError('')
 
@@ -106,6 +109,7 @@ function IncomingJobs({ onJobResponded }) {
           `Unable to ${action.toLowerCase()} job.`,
       )
     } finally {
+      operationLock.current = false
       setRespondingJobId(null)
     }
   }

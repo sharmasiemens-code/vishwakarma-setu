@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import Login from './pages/Login'
 import ChangePassword from './pages/ChangePassword'
 import Signup from './pages/Signup'
+import Profile from './pages/Profile'
 import Dashboard from './pages/Dashboard'
 import CreateServiceRequest from './pages/CreateServiceRequest'
 import MyServiceRequests from './pages/MyServiceRequests'
@@ -14,6 +15,7 @@ import './App.css'
 
 function App() {
   const [user, setUser] = useState(null)
+  const [sessionError, setSessionError] = useState('')
   const [checkingAuth, setCheckingAuth] =
     useState(true)
 
@@ -35,7 +37,9 @@ function App() {
         return
       }
 
-      const currentUser = await getCurrentUser()
+      let currentUser
+      try { currentUser = await getCurrentUser() }
+      catch (error) { if (!cancelled) { setSessionError(error.message); setCheckingAuth(false) }; return }
 
       if (!cancelled) {
         setUser(currentUser)
@@ -76,7 +80,7 @@ function App() {
    * select an existing request and find a technician.
    */
   function handleFindTechnician() {
-    setCurrentPage('my-requests')
+    setCurrentPage('create-request')
   }
 
   /*
@@ -114,6 +118,8 @@ function App() {
     setSelectedRequestId(null)
   }
 
+  if (sessionError) return <section className="setu-empty" role="alert"><p>{sessionError}</p><p>Your session is saved. Reconnect and retry.</p><button onClick={() => window.location.reload()}>Retry</button></section>
+
   if (checkingAuth) {
     return (
       <div className="dashboard-message">
@@ -143,6 +149,8 @@ function App() {
       />
     )
   }
+
+  if (currentPage === 'profile') return <Profile onBack={() => setCurrentPage('dashboard')} />
 
   if (currentPage === 'change-password') {
     return <ChangePassword onBack={() => setCurrentPage('dashboard')} onChanged={handleLogout} />
@@ -185,6 +193,7 @@ function App() {
       user={user}
         onChangePassword={() => setCurrentPage('change-password')}
       onLogout={handleLogout}
+      onProfile={() => setCurrentPage('profile')}
       onCreateRequest={handleCreateRequest}
       onViewRequests={handleViewRequests}
       onFindTechnician={handleFindTechnician}

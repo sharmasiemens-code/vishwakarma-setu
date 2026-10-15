@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { apiRequest } from '../api/client'
+import { useLanguage } from '../../../shared/Experience'
 import { logout } from '../auth/auth'
 
 function extractCustomerId(data) {
@@ -111,10 +112,12 @@ function Dashboard({
   user,
   onLogout,
   onChangePassword,
+  onProfile,
   onCreateRequest,
   onViewRequests,
   onSelectRequest,
 }) {
+  const { t } = useLanguage()
   const [requests, setRequests] = useState([])
   const [notifications, setNotifications] = useState([])
   const [unreadCount, setUnreadCount] = useState(0)
@@ -458,7 +461,8 @@ function Dashboard({
             )}
           </button>
 
-          <button type="button" onClick={onChangePassword}>Change Password</button>
+          <button type="button" onClick={onProfile}>{t('Profile')}</button>
+          <button type="button" onClick={onChangePassword}>{t('Change Password')}</button>
 
           <button
             type="button"
@@ -597,10 +601,10 @@ function Dashboard({
               className="primary-action"
               onClick={onCreateRequest}
             >
-              + Create Service Request
+              {t('Request a Service')}
             </button>
             <button type="button" onClick={onViewRequests}>
-              My Requests
+              {t('My Requests')}
             </button>
             <p className="customer-action-help">
               Open My Requests to find technicians or track existing work.

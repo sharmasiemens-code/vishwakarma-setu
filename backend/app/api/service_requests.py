@@ -1,5 +1,8 @@
 from app.core.system_settings import get_system_settings, operational_query
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Header
+from fastapi.encoders import jsonable_encoder
+import hashlib
+import json
 from uuid import UUID
 from pydantic import BaseModel, Field, ConfigDict, StrictFloat, field_validator
 from sqlalchemy import text
@@ -94,6 +97,7 @@ def create_service_request(
     request: ServiceRequestCreate,
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
+    idempotency_key: UUID | None = Header(default=None, alias="Idempotency-Key"),
 ):
     # Only customers can create service requests
     if current_user.get("role") != "CUSTOMER":
@@ -109,6 +113,19 @@ def create_service_request(
             status_code=401,
             detail="Invalid customer authentication",
         )
+
+    payload_hash = hashlib.sha256(request.model_dump_json().encode()).hexdigest()
+    if idempotency_key is not None:
+        db.execute(text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
+                   {"key": str(user_id) + ":request:" + str(idempotency_key)})
+        saved = db.execute(text("""
+            SELECT payload_hash, response FROM public.service_request_idempotency
+            WHERE user_id = CAST(:actor AS uuid) AND request_key = :key
+        """), {"actor": user_id, "key": idempotency_key}).mappings().first()
+        if saved:
+            if saved["payload_hash"] != payload_hash:
+                raise HTTPException(409, "This submission key belongs to a different request")
+            return saved["response"]
 
     # Find the customer profile linked to the authenticated user
     customer_query = text("""
@@ -253,13 +270,19 @@ def create_service_request(
 
         created_request = result.fetchone()
 
-        db.commit()
-
-        return {
+        reply = jsonable_encoder({
             "status": "success",
             "message": "Service request created successfully",
             "service_request": dict(created_request._mapping),
-        }
+        })
+        if idempotency_key is not None:
+            db.execute(text("""
+                INSERT INTO public.service_request_idempotency (user_id, request_key, payload_hash, response)
+                VALUES (CAST(:actor AS uuid), :key, :hash, CAST(:response AS jsonb))
+            """), {"actor": user_id, "key": idempotency_key, "hash": payload_hash,
+                   "response": json.dumps(reply)})
+        db.commit()
+        return reply
 
     except Exception as exc:
         db.rollback()
@@ -568,9 +591,11 @@ def get_service_request_summary(
             u.full_name,
             t.business_name,
             t.experience_years,
-            t.rating_average,
-            t.total_jobs,
+            (SELECT ROUND(AVG(r.rating)::numeric, 2) FROM ratings r WHERE r.technician_id = t.id) AS rating_average,
+            (SELECT COUNT(*) FROM jobs done WHERE done.technician_id = t.id AND done.status = 'COMPLETED') AS total_jobs,
             t.availability_status,
+            TRUE AS verification_approved,
+            (SELECT COUNT(*) FROM ratings r WHERE r.technician_id = t.id) AS review_count,
 
             ROUND(
                 (
@@ -740,9 +765,11 @@ def get_service_request_matches(
             u.full_name,
             t.business_name,
             t.experience_years,
-            t.rating_average,
-            t.total_jobs,
+            (SELECT ROUND(AVG(r.rating)::numeric, 2) FROM ratings r WHERE r.technician_id = t.id) AS rating_average,
+            (SELECT COUNT(*) FROM jobs done WHERE done.technician_id = t.id AND done.status = 'COMPLETED') AS total_jobs,
             t.availability_status,
+            TRUE AS verification_approved,
+            (SELECT COUNT(*) FROM ratings r WHERE r.technician_id = t.id) AS review_count,
 
             ROUND(
                 (

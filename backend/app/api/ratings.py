@@ -1,7 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict, StrictInt, field_validator
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
+from fastapi import Query, Response
 from uuid import UUID
 
 from app.db.database import get_db
@@ -16,9 +18,15 @@ router = APIRouter(
 
 
 class RatingCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     job_id: UUID
-    rating: int = Field(..., ge=1, le=5)
+    rating: StrictInt = Field(..., ge=1, le=5)
     review: str | None = Field(None, max_length=1000)
+
+    @field_validator("review")
+    @classmethod
+    def clean_review(cls, value):
+        return value.strip() or None if value is not None else None
 
 
 @router.post("")
@@ -60,7 +68,7 @@ def create_rating(
             AND c.user_id = :user_id
             AND u.is_active = TRUE
             AND u.is_verified = TRUE
-        LIMIT 1
+        LIMIT 1 FOR UPDATE OF j
     """)
 
     job = db.execute(
@@ -82,6 +90,11 @@ def create_rating(
             status_code=409,
             detail="Rating is allowed only after job completion",
         )
+
+    # Serialize ratings for this technician so the cached average includes
+    # concurrent reviews on different jobs. The job lock handles double taps.
+    db.execute(text("SELECT id FROM technicians WHERE id = :id FOR UPDATE"),
+               {"id": job["technician_id"]})
 
     # Check whether this job has already been rated
     existing_query = text("""
@@ -195,6 +208,9 @@ def create_rating(
             "rating": dict(new_rating),
         }
 
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(409, "This job has already been rated") from None
     except Exception:
         db.rollback()
         raise HTTPException(
@@ -207,11 +223,11 @@ def get_job_rating(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    # Only customers can access their job rating
-    if current_user.get("role") != "CUSTOMER":
+    # Both participants can read the review; no other account can read it.
+    if current_user.get("role") not in {"CUSTOMER", "TECHNICIAN"}:
         raise HTTPException(
             status_code=403,
-            detail="Only customers can access job ratings",
+            detail="Job participant access required",
         )
 
     user_id = current_user.get("sub")
@@ -234,13 +250,11 @@ def get_job_rating(
         FROM ratings r
         JOIN customers c
             ON c.id = r.customer_id
-        JOIN users u
-            ON u.id = c.user_id
+        JOIN technicians t ON t.id = r.technician_id
         WHERE
             r.job_id = :job_id
-            AND c.user_id = :user_id
-            AND u.is_active = TRUE
-            AND u.is_verified = TRUE
+            AND ((:role = 'CUSTOMER' AND c.user_id = CAST(:user_id AS uuid))
+              OR (:role = 'TECHNICIAN' AND t.user_id = CAST(:user_id AS uuid)))
         LIMIT 1
     """)
 
@@ -249,6 +263,7 @@ def get_job_rating(
         {
             "job_id": job_id,
             "user_id": user_id,
+            "role": current_user["role"],
         },
     ).mappings().first()
 
@@ -260,13 +275,15 @@ def get_job_rating(
 
     return {
         "status": "success",
-        "rating": dict(result),
+        "rating": {key: result[key] for key in ("id", "job_id", "rating", "review", "created_at")},
     }
 @router.get("/technician/{technician_id}")
 def get_technician_ratings(
     technician_id: UUID,
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
 ):
     # User must be authenticated
     user_id = current_user.get("sub")
@@ -283,8 +300,8 @@ def get_technician_ratings(
             t.id AS technician_id,
             u.full_name,
             t.business_name,
-            t.rating_average,
-            t.total_jobs
+            (SELECT ROUND(AVG(r.rating)::numeric, 2) FROM ratings r WHERE r.technician_id = t.id) AS rating_average,
+            (SELECT COUNT(*) FROM jobs done WHERE done.technician_id = t.id AND done.status = 'COMPLETED') AS total_jobs
         FROM technicians t
         JOIN users u
             ON u.id = t.user_id
@@ -309,6 +326,12 @@ def get_technician_ratings(
             detail="Verified technician not found",
         )
 
+    summary = db.execute(text("""
+        SELECT COUNT(*) AS total_reviews, ROUND(AVG(rating)::numeric, 2) AS rating_average
+        FROM ratings WHERE technician_id = :technician_id
+    """), {"technician_id": technician_id}).mappings().one()
+    technician = {**dict(technician), "rating_average": summary["rating_average"]}
+
     # Return public reviews only.
     # Do not expose customer identity or contact information.
     ratings_query = text("""
@@ -320,19 +343,42 @@ def get_technician_ratings(
         FROM ratings r
         WHERE
             r.technician_id = :technician_id
-        ORDER BY r.created_at DESC
+        ORDER BY r.created_at DESC, r.id DESC LIMIT :limit OFFSET :offset
     """)
 
     ratings = db.execute(
         ratings_query,
         {
-            "technician_id": technician_id,
+            "technician_id": technician_id, "limit": limit, "offset": offset,
         },
     ).mappings().all()
 
     return {
         "status": "success",
         "technician": dict(technician),
-        "total_reviews": len(ratings),
+        "total_reviews": summary["total_reviews"],
         "reviews": [dict(row) for row in ratings],
     }
+
+
+@router.get("/me")
+def get_my_ratings(response: Response, current_user: dict = Depends(get_current_user),
+                   db: Session = Depends(get_db), limit: int = Query(20, ge=1, le=100),
+                   offset: int = Query(0, ge=0)):
+    if current_user.get("role") != "TECHNICIAN":
+        raise HTTPException(403, "Technician access required")
+    params = {"id": current_user.get("technician_id"), "actor": current_user["sub"],
+              "limit": limit, "offset": offset}
+    summary = db.execute(text("""
+        SELECT COUNT(r.id) AS total_reviews, ROUND(AVG(r.rating)::numeric, 2) AS rating_average
+        FROM technicians t LEFT JOIN ratings r ON r.technician_id = t.id
+        WHERE t.id = CAST(:id AS uuid) AND t.user_id = CAST(:actor AS uuid)
+    """), params).mappings().one()
+    rows = db.execute(text("""
+        SELECT r.id, r.job_id, r.rating, r.review, r.created_at
+        FROM ratings r JOIN technicians t ON t.id = r.technician_id
+        WHERE t.id = CAST(:id AS uuid) AND t.user_id = CAST(:actor AS uuid)
+        ORDER BY r.created_at DESC, r.id DESC LIMIT :limit OFFSET :offset
+    """), params).mappings().all()
+    response.headers["Cache-Control"] = "no-store"
+    return {"status": "success", **dict(summary), "reviews": [dict(row) for row in rows]}

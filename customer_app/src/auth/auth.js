@@ -61,7 +61,8 @@ async function getCurrentUser() {
     localStorage.setItem(USER_KEY, JSON.stringify(user))
 
     return user
-  } catch {
+  } catch (error) {
+    if (error.status !== 401) throw error
     logout()
     return null
   }
@@ -103,10 +104,10 @@ export {
   isAuthenticated,
 }
 
-export async function registerCustomer({ full_name, phone, password }) {
+export async function registerCustomer({ full_name, phone, password, email = null, date_of_birth = null }) {
   const response = await apiRequest('/auth/register/customer', {
     method: 'POST',
-    body: JSON.stringify({ full_name, phone, password }),
+    body: JSON.stringify({ full_name, phone, password, email, date_of_birth }),
   })
 
   if (

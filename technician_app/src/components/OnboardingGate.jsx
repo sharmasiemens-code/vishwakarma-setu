@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { apiRequest } from '../api/client'
+import CompleteOnboarding from '../pages/CompleteOnboarding'
 
 export default function OnboardingGate({ children, onLogout, onChangePassword }) {
   const [application, setApplication] = useState(null)
@@ -41,6 +42,9 @@ export default function OnboardingGate({ children, onLogout, onChangePassword })
   }, [reload])
 
   if (!loading && application?.can_work) return children
+  if (!loading && application?.onboarding_required && !application.application_id) return <CompleteOnboarding
+    onLogout={onLogout} onSubmitted={() => { setLoading(true); setReload((value) => value + 1) }}
+  />
 
   return (
     <div className="login-page">

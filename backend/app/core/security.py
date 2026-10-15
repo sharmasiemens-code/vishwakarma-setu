@@ -225,7 +225,7 @@ def get_current_user(
                            k.address_verified
                     FROM public.technicians t
                     JOIN public.users u ON u.id = t.user_id
-                    JOIN public.technician_applications a
+                    LEFT JOIN public.technician_applications a
                         ON a.technician_id = t.id
                     LEFT JOIN public.technician_kyc k
                         ON k.technician_id = t.id
@@ -240,9 +240,9 @@ def get_current_user(
 
             if onboarding_application is not None:
                 ready = (
-                    onboarding_application["status"] == "APPROVED"
+                    (onboarding_application["status"] is None or onboarding_application["status"] == "APPROVED")
                     and onboarding_application["is_verified"] is True
-                    and onboarding_application["phone_verified_at"] is not None
+                    and (onboarding_application["status"] is None or onboarding_application["phone_verified_at"] is not None)
                     and onboarding_application["kyc_status"] == "APPROVED"
                     and onboarding_application["verification_status"] == "APPROVED"
                     and onboarding_application["address_verified"] is True
@@ -260,7 +260,13 @@ def get_current_user(
                     and request.method == "POST"
                     and request.url.path.rstrip("/") == "/auth/change-password"
                 )
-                if not ready and not (status_access or password_access):
+                onboarding_access = (
+                    request is not None and (
+                        (request.method in {"GET", "PUT"} and request.url.path.rstrip("/") == "/auth/technician/onboarding")
+                        or (request.method == "POST" and request.url.path.rstrip("/") == "/auth/technician/onboarding/submit")
+                    )
+                )
+                if not ready and not (status_access or password_access or onboarding_access):
                     raise HTTPException(
                         status_code=status.HTTP_403_FORBIDDEN,
                         detail=(
