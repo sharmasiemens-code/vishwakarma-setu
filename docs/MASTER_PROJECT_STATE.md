@@ -310,3 +310,12 @@
 - Mobile policy tests, lint/build and Android generation/plugin sync verified.
 - APK compilation, real-device acceptance, FCM push alerts, release signing and Customer Android packaging pending.
 - No VPS or public deployment performed; see TECHNICIAN_ANDROID.md.
+
+### Technician Android device and Firebase setup — 2026-10-15
+- User built the debug APK after choosing JVM 21 and resolving Gradle download timeouts with a local Gradle ZIP.
+- Phone R9ZX90G0WNL authorized over ADB; APK login succeeds through USB backend forwarding.
+- In-app notifications work; missing Android banners/sound identified as pending FCM integration.
+- Firebase project vishwakarma-setu created on Spark; Android app in.vishwakarmasetu.technician registered.
+- User confirmed google-services.json exists and the native Google Services plugin is configured.
+- Push feature branch adds permission/channel UI, device registration, transactional queue and optional Firebase delivery worker.
+- PN_001_android_push.sql, backend-only Firebase credential setup, rebuilt APK and real-device notification acceptance pending; see ANDROID_PUSH.md.
