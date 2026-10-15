@@ -1,3 +1,5 @@
+import { PushNotifications } from '@capacitor/push-notifications'
+import { detachPushDevice } from './mobile/push'
 import { Capacitor } from '@capacitor/core'
 import { App as NativeApp } from '@capacitor/app'
 import { useEffect, useState } from 'react'
@@ -74,12 +76,23 @@ function App() {
     return () => { disposed = true; listeners.forEach((listener) => listener.remove()) }
   }, [page])
 
+  useEffect(() => {
+    if (Capacitor.getPlatform() !== 'android' || !user || import.meta.env.VITE_PUSH_ENABLED !== '1') return
+    let disposed = false
+    let listener
+    PushNotifications.addListener('pushNotificationActionPerformed', () => {
+      if (!disposed) setPage('dashboard')
+    }).then((handle) => { if (disposed) handle.remove(); else listener = handle })
+    return () => { disposed = true; listener?.remove() }
+  }, [user])
+
   function handleLogin(loggedInUser) {
     setUser(loggedInUser)
     setPage('dashboard')
   }
 
-  function handleLogout() {
+  async function handleLogout() {
+    try { await detachPushDevice() } catch { /* Continue local logout when offline. */ }
     logout()
     setUser(null)
     setPage('dashboard')
