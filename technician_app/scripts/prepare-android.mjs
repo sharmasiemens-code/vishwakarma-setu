@@ -9,6 +9,13 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const env = { ...loadEnv('android', root, ''), ...process.env }
 const allowHttp = env.MOBILE_ALLOW_HTTP === '1'
 const api = validateMobileApi(env.VITE_API_BASE_URL, allowHttp)
+const firebaseFile = resolve(root, 'android/app/google-services.json')
+if (existsSync(firebaseFile)) {
+  const firebase = JSON.parse(readFileSync(firebaseFile, 'utf8'))
+  const matches = firebase.client?.some((client) => client.client_info?.android_client_info?.package_name === 'in.vishwakarmasetu.technician')
+  if (!matches) throw new Error('google-services.json does not match the Technician Android package name.')
+  env.VITE_PUSH_ENABLED = '1'
+} else env.VITE_PUSH_ENABLED = '0'
 
 function run(script, args) {
   const result = spawnSync(process.execPath, [resolve(root, script), ...args], {
@@ -24,7 +31,7 @@ if (!existsSync(resolve(root, 'android'))) run('node_modules/@capacitor/cli/bin/
 
 const manifestPath = resolve(root, 'android/app/src/main/AndroidManifest.xml')
 let manifest = readFileSync(manifestPath, 'utf8')
-for (const permission of ['ACCESS_COARSE_LOCATION', 'ACCESS_FINE_LOCATION']) {
+for (const permission of ['ACCESS_COARSE_LOCATION', 'ACCESS_FINE_LOCATION', 'POST_NOTIFICATIONS']) {
   if (!manifest.includes(`android.permission.${permission}`)) {
     manifest = manifest.replace('</manifest>', `    <uses-permission android:name="android.permission.${permission}" />\n</manifest>`)
   }
@@ -40,6 +47,10 @@ writeFileSync(resolve(debugDirectory, 'AndroidManifest.xml'), `<?xml version="1.
 manifest = readFileSync(manifestPath, 'utf8')
 if (/android:usesCleartextTraffic=/.test(manifest)) manifest = manifest.replace(/android:usesCleartextTraffic="[^"]*"/, 'android:usesCleartextTraffic="false"')
 else manifest = manifest.replace('<application', '<application android:usesCleartextTraffic="false"')
+const channelMetadata = '<meta-data android:name="com.google.firebase.messaging.default_notification_channel_id" android:value="vishwakarma_jobs_v1" />'
+if (!manifest.includes('com.google.firebase.messaging.default_notification_channel_id')) {
+  manifest = manifest.replace('</application>', '    ' + channelMetadata + '\n    </application>')
+}
 writeFileSync(manifestPath, manifest)
 run('node_modules/@capacitor/cli/bin/capacitor', ['sync', 'android'])
 console.log(`Android prepared for ${api}. ${allowHttp ? 'Local HTTP testing: build DEBUG only.' : 'HTTPS mode.'}`)
