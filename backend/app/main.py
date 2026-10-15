@@ -24,6 +24,8 @@ from app.api.dispute_photos import router as dispute_photos_router
 from app.api.technicians import router as technicians_router
 from app.api.auth import router as auth_router
 from app.api.passwords import router as passwords_router
+from app.api.push import router as push_router
+from app.services.push_delivery import deliver_pending_pushes, push_enabled
 from app.api.ratings import router as ratings_router
 from app.api.notifications import router as notifications_router
 from app.api.admin import router as admin_router
@@ -57,15 +59,33 @@ async def technician_presence_worker():
         await asyncio.sleep(60)
 
 
+async def android_push_worker():
+    while True:
+        try:
+            await asyncio.to_thread(deliver_pending_pushes)
+        except Exception as exc:
+            # Don't log SDK exception bodies, which can include device tokens.
+            logger.error("Android push worker failed (%s). Check Firebase configuration and migration.", type(exc).__name__)
+        await asyncio.sleep(5)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     worker_task = asyncio.create_task(
         technician_presence_worker()
     )
 
+    push_task = asyncio.create_task(android_push_worker()) if push_enabled() else None
+
     try:
         yield
     finally:
+        if push_task is not None:
+            push_task.cancel()
+            try:
+                await push_task
+            except asyncio.CancelledError:
+                pass
         worker_task.cancel()
 
         try:
@@ -104,6 +124,7 @@ allow_origins=[
 
 app.include_router(auth_router)
 app.include_router(passwords_router)
+app.include_router(push_router)
 app.include_router(matching_router)
 app.include_router(services_router)
 app.include_router(service_requests_router)
